@@ -132,11 +132,11 @@ class WP_Members_Validation_Link {
 		
 			// Does email body have the [confirm_link] shortcode?
 			if ( strpos( $arr['body'], '[confirm_link]' ) ) {
-				$arr['body'] = str_replace( '[confirm_link]', $link, $arr['body'] );
+				$arr['body'] = str_replace( '[confirm_link]', esc_url( $link ), $arr['body'] );
 			} else {
 				// Add text and link to the email body.
 				$arr['body'] = $arr['body'] . "\r\n"
-					. $this->email_text . ' ' . $link;
+					. $this->email_text . ' ' . esc_url( $link );
 			}
 		}
 

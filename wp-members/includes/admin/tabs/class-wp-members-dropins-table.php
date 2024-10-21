@@ -177,7 +177,7 @@ class WP_Members_Dropins_Table extends WP_List_Table {
 					delete_option( 'wpmembers_dropins' );
 				}
 				$wpmem->dropins_enabled = $settings;
-				echo '<div id="message" class="message"><p><strong>' . __( 'WP-Members Dropin settings were updated', 'wp-members' ) . '</strong></p></div>';
+				echo '<div id="message" class="message"><p><strong>' . esc_html__( 'WP-Members Dropin settings were updated', 'wp-members' ) . '</strong></p></div>';
 				break;
 
 			default:

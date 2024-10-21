@@ -43,8 +43,8 @@ class WP_Members_Forms {
 		
 		// Validate fields settings.
 		if ( ! isset( $fields ) || empty( $fields ) ) {
-			// Update settings.
-			$fields = array( array( 10, 'Email', 'user_email', 'email', 'y', 'y', 'y', 'profile'=>true ) );
+			// If there are no fields at all, set up email as a registration field (otherwise errors occur).
+			$fields = array( array( 10, esc_html__( 'Email', 'wp-members' ), 'user_email', 'email', 'y', 'y', 'y', 'profile'=>true ) );
 		}
 		
 		// Add new field array keys
@@ -2201,7 +2201,7 @@ class WP_Members_Forms {
 			$tos_link_tag = '<a href="' . esc_url( $tos_link_url ) . '" target="_blank">';
 		} else {
 			$tos_link_url = add_query_arg( 'tos', 'display' );
-			$tos_link_tag = "<a href=\"#\" onClick=\"window.open('" . $tos_link_url . "','tos');\">";
+			$tos_link_tag = "<a href=\"#\" onClick=\"window.open('" . esc_url( $tos_link_url ) . "','tos');\">";
 		}
 
 		/**

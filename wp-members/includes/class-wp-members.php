@@ -1965,11 +1965,11 @@ class WP_Members {
 		}
 		
 		if ( 'button' == $args['format'] ) {
-			$html = '<form action="' . $link . '" id="' . $args['id'] . '" class="' . $args['class'] . '">';
+			$html = '<form action="' . esc_url_raw( $link ) . '" id="' . esc_attr( $args['id'] ) . '" class="' . esc_attr( $args['class'] ) . '">';
 			$html.= ( is_user_logged_in() ) ? '<input type="hidden" name="a" value="logout" />' : '';
-			$html.= '<input type="submit" value="' . $text . '" /></form>';
+			$html.= '<input type="submit" value="' . esc_attr( $text ) . '" /></form>';
 		} else {
-			$html = sprintf( '<a href="%s" id="%s" class="%s">%s</a>', $link, $args['id'], $args['class'], $text );
+			$html = sprintf( '<a href="%s" id="%s" class="%s">%s</a>', esc_url_raw( $link ), esc_attr( $args['id'] ), esc_attr( $args['class'] ), esc_attr( $text ) );
 		}
 		return $html;
 	}

@@ -384,11 +384,11 @@ Last Row|last_row<?php } } ?></textarea>
 				} else {
 					$field_order_id = $field[0];
 				} ?>
-			<input type="hidden" name="add_order_id" value="<?php echo $field_order_id; ?>" />
+			<input type="hidden" name="add_order_id" value="<?php echo intval( $field_order_id ); ?>" />
 			<input type="hidden" name="wpmem_admin_a" value="<?php echo ( $mode == 'edit' ) ? 'edit_field' : 'add_field'; ?>" />
-			<?php $text = ( $mode == 'edit' ) ? __( 'Save Changes', 'wp-members' ) : __( 'Add Field', 'wp-members' ); ?>
+			<?php $text = ( $mode == 'edit' ) ? __( 'Save Changes', 'wp-members' ) : esc_html__( 'Add Field', 'wp-members' ); ?>
 			<?php submit_button( $text ); ?>
-			<p><a href="<?php echo add_query_arg( array( 'page' => 'wpmem-settings', 'tab' => 'fields' ), get_admin_url() . 'options-general.php' ); ?>">&laquo; <?php _e( 'Return to Fields Table', 'wp-members' ); ?></a></p>
+			<p><a href="<?php echo esc_url( add_query_arg( array( 'page' => 'wpmem-settings', 'tab' => 'fields' ), get_admin_url() . 'options-general.php' ) ); ?>">&laquo; <?php esc_html_e( 'Return to Fields Table', 'wp-members' ); ?></a></p>
 		</form><?php
 	}
 

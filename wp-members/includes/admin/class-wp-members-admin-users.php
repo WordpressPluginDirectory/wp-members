@@ -65,7 +65,7 @@ class WP_Members_Admin_Users {
 				}
 				$url = add_query_arg( array( 'action' => $action . '-single', 'user' => $user_object->ID ), "users.php" );
 				$url = wp_nonce_url( $url, 'confirm-user' );
-				$actions[ $action ] = '<a href="' . $url . '">' . $term . '</a>';
+				$actions[ $action ] = '<a href="' . esc_url( $url ) . '">' . esc_html( $term ) . '</a>';
 				
 				// Resend welcome email (will contain confirmation link if enabled).
 				//$actions['resend_welcome'] = '<a href="' . wp_nonce_url( add_query_arg( array( 'action' => 'resend_welcome', 'user' => $user_object->ID ), "users.php" ), 'resend-welcome' ) . '">' . __( 'Resend welcome email', 'wp-members' ) . '</a>';
@@ -83,7 +83,7 @@ class WP_Members_Admin_Users {
 				}
 				$url = add_query_arg( array( 'action' => $action . '-single', 'user' => $user_object->ID ), "users.php" );
 				$url = wp_nonce_url( $url, 'activate-user' );
-				$actions[ $action ] = '<a href="' . $url . '">' . $term . '</a>';
+				$actions[ $action ] = '<a href="' . esc_url( $url ) . '">' . esc_html( $term ) . '</a>';
 			}
 		}
 		return $actions;
@@ -241,7 +241,7 @@ class WP_Members_Admin_Users {
 		do_action( 'wpmem_user_action' );
 
 		// If we did not return already, we need to wp_safe_redirect.
-		wp_safe_redirect( $sendback );
+		wp_safe_redirect( esc_url( $sendback ) );
 		exit();
 
 	}
