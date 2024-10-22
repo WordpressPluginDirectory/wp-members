@@ -464,7 +464,7 @@ class widget_wpmemwidget extends WP_Widget {
 			$args = wp_parse_args( $args, $defaults );
 
 			// Generate the message string.
-			$str = esc_attr( $args['wrapper_before'] ) . esc_html( $args['status_text'] ) . '<a href="' . esc_url_raw( $logout ) . '">' . esc_html( $args['link_text'] ) . '</a>' . esc_attr( $args['wrapper_after'] );
+			$str = $args['wrapper_before'] . $args['status_text'] . '<a href="' . esc_url_raw( $logout ) . '">' . esc_html( $args['link_text'] ) . '</a>' . $args['wrapper_after'];
 
 			/**
 			 * Filter the sidebar user login status.

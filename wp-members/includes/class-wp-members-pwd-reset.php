@@ -197,11 +197,11 @@ class WP_Members_Pwd_Reset {
 			
 			// Does email body have the [reset_link] shortcode?
 			if ( strpos( $arr['body'], '[reset_link]' ) ) {
-				$arr['body'] = str_replace( '[reset_link]', esc_url( $link ), $arr['body'] );
+				$arr['body'] = str_replace( '[reset_link]', esc_url_raw( $link ), $arr['body'] );
 			} else {
 				// Add text and link to the email body.
 				$arr['body'] = $arr['body'] . "\r\n"
-					. esc_url( $link );
+					. esc_url_raw( $link );
 			}
 		}
 		return $arr;

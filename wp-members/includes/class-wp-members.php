@@ -500,6 +500,8 @@ class WP_Members {
 	 */
 	public $admin;
 
+	public $style;
+
 	/**
 	 * Objects for premium extensions.
 	 * 
