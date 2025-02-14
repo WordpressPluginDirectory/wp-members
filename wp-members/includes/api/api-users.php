@@ -4,13 +4,13 @@
  * 
  * This file is part of the WP-Members plugin by Chad Butler
  * You can find out more about this plugin at https://rocketgeek.com
- * Copyright (c) 2006-2023  Chad Butler
+ * Copyright (c) 2006-2025  Chad Butler
  * WP-Members(tm) is a trademark of butlerblog.com
  *
  * @package WP-Members
  * @subpackage WP-Members API Functions
  * @author Chad Butler 
- * @copyright 2006-2023
+ * @copyright 2006-2025
  */
 
 /**
@@ -92,13 +92,31 @@ function wpmem_user_has_role( $role, $user_id = false ) {
  * the meta result and drops the $single argument.
  *
  * @since 3.3.0
+ * @since 3.5.2 Include the possibility of serialized data with WooCommerce.
  *
  * @param  int    $user_id
  * @param  string $meta_key
  * @return string $result
  */
 function wpmem_get_user_meta( $user_id, $meta_key ) {
-	return get_user_meta( $user_id, $meta_key, true );
+	$value = get_user_meta( $user_id, $meta_key, true );
+	// Check if it is serialized (WooCommerce)
+	if ( is_array( $value ) ) {
+		// Does it have a delimiter?
+		$fields = wpmem_fields('all');
+		$value = implode( $fields[ $meta_key ]['delimiter'], $value );
+	}
+	/**
+	 * Filter the result returned from wpmem_get_user_meta()
+	 * 
+	 * @since 3.5.2
+	 * 
+	 * @param  $meta_value
+	 * @param  $user_id
+	 * @param  $meta_key
+	 * @return $meta_value
+	 */
+	return apply_filters( 'wpmem_get_user_meta', $value, $user_id, $meta_key );
 }
 
 /**
@@ -333,7 +351,7 @@ function wpmem_user_is_current( $membership, $user_id = false ) {
 	global $wpmem;
 	$user_id = ( false === $user_id ) ? get_current_user_id() : $user_id;
 	$memberships = wpmem_get_user_memberships( $user_id );
-	return ( $wpmem->user->is_current( $memberships[ $membership ] ) ) ? true : false;
+	return ( isset( $memberships[ $membership ] ) && $wpmem->user->is_current( $memberships[ $membership ] ) ) ? true : false;
 }
 
 /**
@@ -355,12 +373,13 @@ function wpmem_remove_user_membership( $membership, $user_id = false ) {
 }
 
 /**
- * An alias for wpmem_get_user_products().
+ * Gets memberships a user has.
  * 
  * @since 3.4.2
  */
 function wpmem_get_user_memberships( $user_id = false ) {
-	return wpmem_get_user_products( $user_id );
+	global $wpmem;
+	return ( $user_id ) ? $wpmem->user->get_user_products( $user_id ) : $wpmem->user->access;
 }
 
 /**
@@ -398,7 +417,7 @@ function wpmem_remove_user_product( $product, $user_id = false ) {
 }
 
 /** 
- * Gets memberships a user has.
+ * Deprecated alias for wpmem_get_user_memberships().
  *
  * @since 3.3.0
  * @since 3.4.2 Use wpmem_get_user_memberships() instead.
@@ -408,8 +427,7 @@ function wpmem_remove_user_product( $product, $user_id = false ) {
  * @return array
  */
 function wpmem_get_user_products( $user_id = false ) {
-	global $wpmem;
-	return ( $user_id ) ? $wpmem->user->get_user_products( $user_id ) : $wpmem->user->access;
+	return wpmem_get_user_memberships( $user_id );
 }
 
 /**
@@ -602,7 +620,7 @@ function wpmem_activate_user( $user_id, $notify = true, $set_pwd = false ) {
 
 	// Generate and send user approved email to user.
 	if ( true === $notify ) {
-		wpmem_email_to_user( $user_id, $new_pass, 2 );
+		wpmem_email_to_user( array( 'user_id'=>$user_id, 'password'=>$new_pass, 'tag'=>'appmod' ) );
 	}
 
 	// Set the active flag in usermeta.
@@ -634,6 +652,10 @@ function wpmem_activate_user( $user_id, $notify = true, $set_pwd = false ) {
  */
 function wpmem_deactivate_user( $user_id ) {
 	update_user_meta( $user_id, 'active', 0 );
+
+	// Destroy sessions.
+	$sessions = WP_Session_Tokens::get_instance( $user_id );
+	$sessions->destroy_all();
 
 	/**
 	 * Fires after the user deactivation process is complete.
@@ -673,6 +695,7 @@ function wpmem_set_user_status( $user_id, $status ) {
  * @since 2.9.3 Added validation for multisite.
  * @since 3.0.0 Moved from wp-members-register.php to /inc/register.php.
  * @since 3.3.0 Ported from wpmem_registration in /inc/register.php (now deprecated).
+ * @since 3.5.0 $tag is optional, does registration by default.
  *
  * @todo Review what should be in the API function and what should be moved to object classes.
  *
@@ -681,10 +704,10 @@ function wpmem_set_user_status( $user_id, $status ) {
  * @global string $wpmem_themsg
  * @global array  $userdata
  *
- * @param  string $tag Identifies 'register' or 'update'.
+ * @param  string $tag Identifies 'register' or 'update'.  Optional, default: register
  * @return string $wpmem_themsg|success|editsuccess
  */
-function wpmem_user_register( $tag ) {
+function wpmem_user_register( $tag = "register" ) {
 
 	// Get the globals.
 	global $user_ID, $wpmem, $wpmem_themsg, $userdata;
@@ -1024,25 +1047,25 @@ function wpmem_get_user_obj( $user ) {
  *
  * @since 3.3.5
  *
- * @param   string  $meta   The meta key to search fo.
+ * @param   string  $meta   The meta key to search for.
  * @param   string  $value  The meta value to search for (defaul:false).
  * @return  array   $users  An array of user IDs who have the requested meta.
  */
 function wpmem_get_users_by_meta( $meta, $value = "EXISTS" ) {
-	$args  = array( 'fields' => array( 'ID' ), 'meta_key' => $meta );
+	$args  = array( 'fields' => array( 'ID' ), 'meta_key' => esc_sql( $meta ) );
 	if ( false === $value ) {
 		$args['meta_value'] = '';
 		$args['meta_compare'] = 'NOT EXISTS';
-	} elseif ( "EXISTS" === $value ) {
+	} elseif ( "EXISTS" == $value ) {
 		$args['meta_value'] = '';
 		$args['meta_compare'] = '>';
 	} else {
-		$args['meta_value'] = $value;
+		$args['meta_value'] = esc_sql( $value );
 	}
 	$results = get_users( $args );
 	if ( $results ) {
 		foreach( $results as $result ) {
-			$users[] = $result->ID;
+			$users[] = intval( $result->ID );
 		}
 		return $users;
 	} else {
@@ -1171,5 +1194,20 @@ function wpmem_create_username_from_email( $email, $fields = array() ) {
 	}
 	
 	return $temp_user;
+}
+
+/**
+ * Utility to get all users. Essentially a wrapper for WP_User_Query
+ * 
+ * @since 3.5.0
+ * 
+ * @todo Add query args for getting users by membership (and by not membership)
+ */
+function wpmem_get_users( $args = array( 'fields' => 'ID' ), $type = 'array' ) {
+	$type = ( ! is_array( $args ) ) ? $args : $type;
+	$args['count_total'] = false;
+	$user_search = new WP_User_Query( $args );
+	$result = $user_search->get_results();
+	return ( 'object' == $type ) ? (object)$result : $result;
 }
 // End of file.

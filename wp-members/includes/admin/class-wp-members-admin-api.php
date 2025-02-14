@@ -49,6 +49,9 @@ class WP_Members_Admin_API {
 	 */
 	public $user_search;
 
+	public $current_form;
+	public $current_form_fields;
+
 	/**
 	 * Plugin initialization function.
 	 *
@@ -57,15 +60,19 @@ class WP_Members_Admin_API {
 	function __construct() {
 
 		global $wpmem;
+			
+		if ( 'finalize' == wpmem_get( 'wpmem_onboarding_action' ) ) {
+			require_once( $wpmem->path . 'includes/install.php' );
+			wpmem_onboarding_init( array( 'finalize' ) );
+			wpmem_onboarding_finalize();
+		}
 
-		$install_state = get_option( 'wpmembers_install_state' );
-
-		if ( 'new_install' == $install_state ) {
+		if ( 'new_install' == $wpmem->install_state ) {
 			require_once( $wpmem->path . 'includes/install.php' );
 			wpmem_onboarding_new_install( $wpmem->path, $wpmem->version );
 		}
 
-		if ( 'update_pending' == $install_state ) {
+		if ( 'update_pending' == $wpmem->install_state ) {
 			require_once( $wpmem->path . 'includes/install.php' );
 			wpmem_onboarding_pending_update( $wpmem->path, $wpmem->version );
 		}
@@ -79,12 +86,14 @@ class WP_Members_Admin_API {
 		// The following is only needed if we are on the WP-Members settings screen.
 		$is_wpmem_admin = wpmem_get( 'page', false, 'get' );
 		if ( false !== $is_wpmem_admin && 'wpmem-settings' == $is_wpmem_admin ) {
-			$tabs    = $this->default_tabs();    // Load default tabs.
-			$emails  = $this->default_emails();  // Load default emails.
-			$dialogs = $this->default_dialogs(); // Load default dialogs.
+			$this->default_tabs();    // Load default tabs.
+			$this->default_emails();  // Load default emails.
+			$this->default_dialogs(); // Load default dialogs.
 		}
 
-		$wpmem->membership->admin = new WP_Members_Products_Admin();
+		if ( wpmem_is_enabled( 'enable_products' ) ) {
+			$wpmem->membership->admin = new WP_Members_Products_Admin();
+		}
 	}
 
 	/**
@@ -113,10 +122,10 @@ class WP_Members_Admin_API {
 			include_once( $wpmem->path . 'includes/admin/tabs/class-wp-members-admin-tab-options.php' );
 			include_once( $wpmem->path . 'includes/admin/tabs/class-wp-members-admin-tab-emails.php'  );
 			include_once( $wpmem->path . 'includes/admin/tabs/class-wp-members-admin-tab-captcha.php' );
-			// include_once( $wpmem->path . 'admin/tab-about.php' );
+			include_once( $wpmem->path . 'includes/admin/tabs/class-wp-members-admin-tab-about.php' );
 			include_once( $wpmem->path . 'includes/admin/tabs/class-wp-members-admin-tab-dialogs.php' );
-			include_once( $wpmem->path . 'includes/admin/tabs/class-wp-members-admin-tab-dropins.php' );
-			
+			include_once( $wpmem->path . 'includes/admin/tabs/class-wp-members-admin-tab-dropins.php' );	
+			include_once( $wpmem->path . 'includes/admin/tabs/class-wp-members-admin-tab-shortcodes.php' );		
 			if ( ! class_exists( 'WP_List_Table' ) ) {
 				require_once( ABSPATH . 'wp-admin/includes/class-wp-list-table.php' );
 			}
@@ -143,13 +152,14 @@ class WP_Members_Admin_API {
 		add_action( 'user_new_form',                  array( $wpmem->forms, 'wp_newuser_form' ) );
 		// add_filter( 'wpmem_admin_tabs',              'wpmem_add_about_tab'       );
 		
-		add_action( 'wp_ajax_wpmem_do_field_reorder',  array( 'WP_Members_Admin_Tab_Fields', 'do_field_reorder' ) );
+		add_action( 'wp_ajax_wpmem_do_field_reorder',  array( 'WP_Members_Admin_Tab_Fields',    'do_field_reorder' ) );
 		
-		add_action( 'wpmem_admin_do_tab',             array( 'WP_Members_Admin_Tab_Options', 'do_tab' ),  1 );
-		add_action( 'wpmem_admin_do_tab',             array( 'WP_Members_Admin_Tab_Fields',  'do_tab' ),  5 );
-		add_action( 'wpmem_admin_do_tab',             array( 'WP_Members_Admin_Tab_Dialogs', 'do_tab' ), 10 );
-		add_action( 'wpmem_admin_do_tab',             array( 'WP_Members_Admin_Tab_Emails',  'do_tab' ), 15 );
-		// add_action( 'wpmem_admin_do_tab',            'wpmem_a_about_tab', 999, 1 );
+		add_action( 'wpmem_admin_do_tab',             array( 'WP_Members_Admin_Tab_Options',    'do_tab' ),  1 );
+		add_action( 'wpmem_admin_do_tab',             array( 'WP_Members_Admin_Tab_Fields',     'do_tab' ),  5 );
+		add_action( 'wpmem_admin_do_tab',             array( 'WP_Members_Admin_Tab_Dialogs',    'do_tab' ), 10 );
+		add_action( 'wpmem_admin_do_tab',             array( 'WP_Members_Admin_Tab_Emails',     'do_tab' ), 15 );
+		add_action( 'wpmem_admin_do_tab',             array( 'WP_Members_Admin_Tab_Shortcodes', 'do_tab' ), 16 );
+		add_action( 'wpmem_admin_do_tab',             array( 'WP_Members_Admin_Tab_About',      'do_tab' ), 17 );
 		
 		// If user has a role that cannot edit users, set profile actions for non-admins.
 		
@@ -174,8 +184,12 @@ class WP_Members_Admin_API {
 			add_action( 'wpmem_admin_after_profile',  array( 'WP_Members_User_Profile', '_show_activate'   ), 7 );
 			add_action( 'wpmem_admin_after_profile',  array( 'WP_Members_User_Profile', '_show_expiration' ), 8 );
 			add_action( 'wpmem_admin_after_profile',  array( 'WP_Members_User_Profile', '_show_ip'         ), 9 );
-			if ( 1 == $wpmem->enable_products ) {
+			if ( wpmem_is_enabled( 'enable_products' ) ) {
 				//add_action( 'wpmem_admin_after_profile',  array( 'WP_Members_User_Profile', '_show_product' ), 10 );
+			}
+			if ( wpmem_is_enabled( 'mod_reg' ) || wpmem_is_enabled( 'act_link' ) ) {
+				include_once $wpmem->path . 'includes/admin/class-wp-members-user-utilities.php';
+				add_action( 'admin_menu', array( 'WP_Members_User_Utilities', 'admin_menu' ) );
 			}
 		}
 	
@@ -208,6 +222,7 @@ class WP_Members_Admin_API {
 		}
 
 		add_action( 'current_screen', array( $this, 'check_user_folders_for_index' ) );
+
 	} // End of load_hooks()
 
 	/**
@@ -217,7 +232,6 @@ class WP_Members_Admin_API {
 	 * @since 3.4.4 Moved from wp-members.php/wpmem_admin_options() to main admin object.
 	 */
 	function add_options_page() {
-		global $wpmem;
 		if ( ! is_multisite() || ( is_multisite() && current_user_can( 'edit_theme_options' ) ) ) {
 			$plugin_page = add_options_page( 'WP-Members', 'WP-Members', 'manage_options', 'wpmem-settings', 'wpmem_admin' );
 		}
@@ -229,7 +243,7 @@ class WP_Members_Admin_API {
 	 * @since 3.3.0
 	 */
 	function do_admin_notices() {
-		global $wpmem; //echo '<pre>'; print_r( $wpmem ); exit();
+		global $wpmem;
 		if ( $wpmem->admin_notices ) {
 			foreach ( $wpmem->admin_notices as $key => $value ) {
 				echo '<div class="notice notice-' . $value['type'] . ' is-dismissible"> 
@@ -263,7 +277,7 @@ class WP_Members_Admin_API {
 			$link_args = array( 'page' => 'wpmem-settings', 'tab'  => $tab );
 			$link = add_query_arg( $link_args, admin_url( 'options-general.php' ) );
 			$class = ( $tab == $current ) ? 'nav-tab nav-tab-active' : 'nav-tab';
-			$links[] = sprintf( '<a class="%s" href="%s">%s</a>', esc_attr( $class ), esc_url( $link ), esc_html( $name ) );
+			$links[] = sprintf( '<a class="%s" href="%s">%s</a>', esc_attr( $class ), esc_url( $link ), esc_attr( $name ) );
 		}
 	
 		echo '<h2 class="nav-tab-wrapper">';
@@ -283,18 +297,18 @@ class WP_Members_Admin_API {
 	 */
 	function add_email( $args ) {
 		
-		// Get saved settings.
-		$settings = get_option( $args['name'] );
+		// Get saved settings (or defaults).
+		$settings = wpmem_get_email_settings( $args['name'] );;
 		
 		$defaults = array(
 			'name'          => $args['name'],
-			'heading'       => __( 'Custom email', 'wp-members' ),
-			'subject_label' => __( 'Subject', 'wp-members' ),
+			'heading'       => esc_html__( 'Custom email', 'wp-members' ),
+			'subject_label' => esc_html__( 'Subject', 'wp-members' ),
 			'subject_input' => $args['name'] . '_subject',
-			'subject_value' => ( $settings ) ? $settings['subj'] : __( 'Subject', 'wp-members' ),
-			'body_label'    => __( 'Body', 'wp-members' ),
+			'subject_value' => ( $settings ) ? $settings['subj'] : esc_html__( 'Subject', 'wp-members' ),
+			'body_label'    => esc_html__( 'Body', 'wp-members' ),
 			'body_input'    => $args['name'] . '_body',
-			'body_value'    => ( $settings ) ? $settings['body'] : __( 'Your custom email message content.', 'wp-members' ),
+			'body_value'    => ( $settings ) ? $settings['body'] : esc_html__( 'Your custom email message content.', 'wp-members' ),
 		);
 		
 		// Merge args with settings.
@@ -331,7 +345,7 @@ class WP_Members_Admin_API {
 				$settings[ $dialog['name'] ] = wp_kses( $_POST[ $dialog['name'] . '_dialog' ], 'post' );
 			}
 		}
-		update_option( 'wpmembers_dialogs', $settings, true );
+		update_option( 'wpmembers_dialogs', $settings, false );
 		// Refresh settings
 		$this->default_dialogs();
 		return;
@@ -372,10 +386,12 @@ class WP_Members_Admin_API {
 	 */
 	function default_tabs() {
 		$this->tabs = array(
-			'options' => 'WP-Members ' . __( 'Options', 'wp-members' ),
-			'fields'  => __( 'Fields', 'wp-members' ),
-			'dialogs' => __( 'Dialogs', 'wp-members' ),
-			'emails'  => __( 'Emails', 'wp-members' ),
+			'options'    => 'WP-Members ' . esc_html__( 'Options', 'wp-members' ),
+			'fields'     => esc_html__( 'Fields', 'wp-members' ),
+			'dialogs'    => esc_html__( 'Dialogs', 'wp-members' ),
+			'emails'     => esc_html__( 'Emails', 'wp-members' ),
+			'shortcodes' => esc_html__( 'Shortcodes', 'wp-members' ),
+			'about'      => esc_html__( 'About WP-Members', 'wp-members' )
 		);
 	}
 
@@ -385,21 +401,20 @@ class WP_Members_Admin_API {
 	 * @since 3.1.0
 	 */	
 	function default_emails() {
-		global $wpmem;
 		
-		if ( 0 == $wpmem->mod_reg ) {
+		if ( ! wpmem_is_enabled( 'mod_reg' ) ) {
 	
 			$this->add_email( array(
 				'name'          => 'wpmembers_email_newreg',
-				'heading'       => __( "New Registration", 'wp-members' ),
+				'heading'       => esc_html__( "New Registration", 'wp-members' ),
 				'subject_input' => 'wpmembers_email_newreg_subj',
 				'body_input'    => 'wpmembers_email_newreg_body',	
 			) );
 
-			if ( 1 == $wpmem->act_link ) {
+			if ( wpmem_is_enabled( 'act_link' ) ) {
 				$this->add_email( array(
 					'name'          => 'wpmembers_email_validated',
-					'heading'       => __( "User email validated", 'wp-members' ),
+					'heading'       => esc_html__( "User email validated", 'wp-members' ),
 					'subject_input' => 'wpmembers_email_validated_subj',
 					'body_input'    => 'wpmembers_email_validated_body',	
 				) );
@@ -409,15 +424,15 @@ class WP_Members_Admin_API {
 	
 			$this->add_email( array(
 				'name'          => 'wpmembers_email_newmod',
-				'heading'       => __( "Registration is Moderated", 'wp-members' ),
+				'heading'       => esc_html__( "Registration is Moderated", 'wp-members' ),
 				'subject_input' => 'wpmembers_email_newmod_subj',
 				'body_input'    => 'wpmembers_email_newmod_body',	
 			) );
 			
-			if ( 1 == $wpmem->act_link ) {
+			if ( wpmem_is_enabled( 'act_link' ) ) {
 				$this->add_email( array(
 					'name'          => 'wpmembers_email_validated',
-					'heading'       => __( "User email validated", 'wp-members' ),
+					'heading'       => esc_html__( "User email validated", 'wp-members' ),
 					'subject_input' => 'wpmembers_email_validated_subj',
 					'body_input'    => 'wpmembers_email_validated_body',	
 				) );
@@ -425,7 +440,7 @@ class WP_Members_Admin_API {
 			
 			$this->add_email( array(
 				'name'          => 'wpmembers_email_appmod',
-				'heading'       => __( "Registration is Moderated, User is Approved", 'wp-members' ),
+				'heading'       => esc_html__( "Registration is Moderated, User is Approved", 'wp-members' ),
 				'subject_input' => 'wpmembers_email_appmod_subj',
 				'body_input'    => 'wpmembers_email_appmod_body',	
 			) );
@@ -433,22 +448,22 @@ class WP_Members_Admin_API {
 	
 		$this->add_email( array(
 			'name'          => 'wpmembers_email_repass',
-			'heading'       => __( "Password Reset", 'wp-members' ),
+			'heading'       => esc_html__( "Password Reset", 'wp-members' ),
 			'subject_input' => 'wpmembers_email_repass_subj',
 			'body_input'    => 'wpmembers_email_repass_body',	
 		) );
 	
 		$this->add_email( array(
 			'name'          => 'wpmembers_email_getuser',
-			'heading'       => __( "Retrieve Username", 'wp-members' ),
+			'heading'       => esc_html__( "Retrieve Username", 'wp-members' ),
 			'subject_input' => 'wpmembers_email_getuser_subj',
 			'body_input'    => 'wpmembers_email_getuser_body',	
 		) );	
 	
-		if ( $wpmem->notify == 1 ) {
+		if ( wpmem_is_enabled( 'notify' ) ) {
 			$this->add_email( array(
 				'name'          => 'wpmembers_email_notify',
-				'heading'       => __( "Admin Notification", 'wp-members' ),
+				'heading'       => esc_html__( "Admin Notification", 'wp-members' ),
 				'subject_input' => 'wpmembers_email_notify_subj',
 				'body_input'    => 'wpmembers_email_notify_body',	
 			) );
@@ -462,7 +477,6 @@ class WP_Members_Admin_API {
 	 * @since 3.1.1
 	 */	
 	function default_dialogs() {
-		global $wpmem;
 		
 		/**
 		 * Filter the dialog array to add custom dialogs.
@@ -474,15 +488,15 @@ class WP_Members_Admin_API {
 		$dialogs = apply_filters( 'wpmem_dialogs', get_option( 'wpmembers_dialogs' ) );
 		
 		$dialog_labels = array(
-			'restricted_msg'   => __( "Restricted post (or page), displays above the login/registration form", 'wp-members' ),
-			'user'             => __( "Username is taken", 'wp-members' ),
-			'email'            => __( "Email is registered", 'wp-members' ),
-			'success'          => __( "Registration completed", 'wp-members' ),
-			'editsuccess'      => __( "User update", 'wp-members' ),
-			'pwdchangerr'      => __( "Passwords did not match", 'wp-members' ),
-			'pwdchangesuccess' => __( "Password changes", 'wp-members' ),
-			'pwdreseterr'      => __( "Username or email do not exist when trying to reset forgotten password", 'wp-members' ),
-			'pwdresetsuccess'  => __( "Password reset", 'wp-members' ),
+			'restricted_msg'   => esc_html__( "Restricted post (or page), displays above the login/registration form", 'wp-members' ),
+			'user'             => esc_html__( "Username is taken", 'wp-members' ),
+			'email'            => esc_html__( "Email is registered", 'wp-members' ),
+			'success'          => esc_html__( "Registration completed", 'wp-members' ),
+			'editsuccess'      => esc_html__( "User update", 'wp-members' ),
+			'pwdchangerr'      => esc_html__( "Passwords did not match", 'wp-members' ),
+			'pwdchangesuccess' => esc_html__( "Password changes", 'wp-members' ),
+			'pwdreseterr'      => esc_html__( "Username or email do not exist when trying to reset forgotten password", 'wp-members' ),
+			'pwdresetsuccess'  => esc_html__( "Password reset", 'wp-members' ),
 		);
 		
 		foreach ( $dialogs as $key => $val ) {
@@ -517,7 +531,7 @@ class WP_Members_Admin_API {
 		$this->current_form_fields = $fields;
 		*/
 		$this->current_form = sanitize_text_field( wpmem_get( 'form', $form, 'get' ) ); //( isset( $_GET['form'] ) ) ? $_GET['form'] : $form;
-		global $wpmem;
+		//global $wpmem;
 		// Add numeric array form fields as associative
 		//foreach( $wpmem->fields as $field ) {
 		//	$wpmem->fields[ $field[2] ] = $field;
@@ -584,7 +598,7 @@ class WP_Members_Admin_API {
 			$ajax_url = admin_url( 'admin-ajax.php' );
 			$wpmem_settings_nonce = wp_create_nonce( 'wpmem_settings_nonce' );
 			$translation_array = array(
-				'close_btn' => __( 'Close', 'wp-members' ),
+				'close_btn' => esc_html__( 'Close', 'wp-members' ),
 				'ajax_url'  => $ajax_url,
 				'nonce'     => $wpmem_settings_nonce,
 			);
@@ -689,14 +703,26 @@ class WP_Members_Admin_API {
 		  || 'settings_page_wpmem-settings' == $current_screen->id ) {
 
 			$upload_vars  = wp_upload_dir( null, false );
-			$wpmem_base_dir = trailingslashit( trailingslashit( $upload_vars['basedir'] ) . $wpmem->upload_base );
+			$wpmem_base_dir = trailingslashit( trailingslashit( $upload_vars['basedir'] ) . wpmem_get_upload_base() );
 			$wpmem_user_files_dir = $wpmem_base_dir . 'user_files/';
 
 			if ( file_exists( $wpmem_user_files_dir ) ) {
 				// If there is a user file dir, check/self-heal htaccess/index files.
-				wpmem_create_htaccess_file( $wpmem_user_files_dir );
-				wpmem_create_index_file( $wpmem_base_dir );
-				wpmem_create_index_file( $wpmem_user_files_dir );
+				wpmem_create_file( array(
+					'path'     => $wpmem_user_files_dir,
+					'name'     => '.htaccess',
+					'contents' => "Options -Indexes"
+				) );
+				wpmem_create_file( array(
+					'path'     => $wpmem_base_dir,
+					'name'     => 'index.php',
+					'contents' => "<?php // Silence is golden."
+				) );
+				wpmem_create_file( array(
+					'path'     => $wpmem_user_files_dir,
+					'name'     => 'index.php',
+					'contents' => "<?php // Silence is golden."
+				) );
 			}
 		}
 	}

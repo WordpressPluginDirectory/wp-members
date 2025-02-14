@@ -2,14 +2,11 @@
 Contributors: cbutlerjr
 Tags: membership, registration, login, authentication, restriction
 Requires at least: 4.0
-Tested up to: 6.6
-Stable tag: 3.4.9.7
-
+Tested up to: 6.7
+Stable tag: 3.5.2
 License: GPLv3
-
-== Description ==
-
-The original membership plugin with content restriction, custom registration, and more.
+License URI: https://www.gnu.org/licenses/gpl-3.0.html
+The original WordPress membership plugin with content restriction, user login, custom registration fields, user profiles, and more.
 
 === Membership Sites. Simplified. ===
 
@@ -23,6 +20,8 @@ __Simple to install and configure - yet customizable and scalable!__
 * Limit menu items to logged in users
 * User login, registration, and profile integrated into your theme
 * Create custom registration and profile fields
+* Integrate custom fields into WooCommerce checkout and registration (only supported by shortcode pages, not block editor version)
+* Create custom memberships and content restriction
 * Notify admin of new user registrations
 * Hold new registrations for admin approval
 * Create post excerpt teaser content automatically
@@ -108,7 +107,7 @@ The FAQs are maintained at https://rocketgeek.com/plugins/wp-members/docs/faqs/
 
 == Upgrade Notice ==
 
-WP-Members 3.4.9 is a security update. Backup prior to upgrading is recommended, but rollback is possible. See changelog for a list of updates. Minimum WP version is 4.0.
+WP-Members 3.5.2 is a bug fix release. WP-Members 3.5.0 is a major update. See changelog for a list of updates. Minimum WP version is 4.0.
 
 
 == Screenshots ==
@@ -132,52 +131,109 @@ WP-Members 3.4.9 is a security update. Backup prior to upgrading is recommended,
 
 == Changelog ==
 
+= 3.5.2 =
+
+* Fixes a bug in the WP_Members_Dialogs::get_text() for unknown keys (reconfirm_link_before & reconfirm_link).
+* Fixes a bug in the [wpmem_user_memberships] shortcode that breaks the expiration date display.
+* Fixes a bug in the install/upgrade script that causes the "finalize" dialog to display indefinitely for a new install.
+* Fixes a bug in the install/upgrade script that didn't properly transfer stylesheet settings if the stylesheet was not the default.
+* Fixes a bug in the html email option, fix prevents from calling it twice.
+* Fixes a bug in the membership stack reading that caused an infinite loop (may or may not be a bug, depending on specific local install settings).
+* Improve handling of multicheckbox and multiselect field types when data is serialized (from WooCommerce).
+* Improve all settings to autoload only those which are needed, specifically set to false those which are not.
+* Improve email options to not autoload (previously set to true). These only need to load when called.
+* Improve wpmem_update_option() to accept an autoload value (defaults to null, just like core WP function).
+* Improve membership options to store in a single option to minimize query every object load. Update option when memberships are updated.
+* Improve uninstall to remove all possible wpmem_user_count transients.
+* Improve uninstall to remove all possible formats of the widget name.
+* Improve stylesheet load (checks for a custom URL value rather than the "select_style" setting).
+* Review which objects are loaded and when. Improve where possible.  Moved password reset object to only load when doing a password reset.
+* Add error handling to WP_Members_Dialogs::get_text() for string keys that do not exist. If one is called, the function will return an empty string and will record the call in the error log.
+* Adds new CLI command "wp mem db autoload-size".
+* Adds wpmem_get_user_meta filter hook.
+
+= 3.5.1 =
+
+* Fixes a bug in the CLI interface that doesn't load the db tools correctly.
+* Fixes a bug in the Fields tab edit view that displays two textarea inputs for select, multiselect, multicheckbox, and radio field types.
+* Fixes a bug in the admin email notification that does not display the [fields] shortcode.
+* Fixes a bug in the Shortcodes tab that throws a PHP error on settings save.
+* Fixes a bug that causes fields to not be added to the WP native registration form or processed properly in the Add New screen.
+* Fixes bugs in adding WP-Members fields to WooCommerce forms.
+* Improves the select, multiselect, multicheckbox, and radio field types so that inadvertent white space after the delimiter "|" is removed.
+* Improves the password reset to use esc_url_raw() instead of esc_url() on the reset link.  Also trims whitespace before assembling query args and rawurlencodes the query args before link assembly.
+* Improves admin email notification, especially for HTML formatted email (removes hard `<br>` tag at the end of shortcode fields so they can be used in email subject line).
+* Makes $field_arr array key in admin notification email filter `wpmem_notify_filter` obsolete (unlikely that anyone is using this).
+* Adds new API functions: wpmem_get_file_field_url(), wpmem_get_field_type(), wpmem_is_file_field(), wpmem_get_field_label(), wpmem_is_field_required().
+
 = 3.5.0 =
 
-* WP-Members pluggable deprecated for use in theme functions.php (wpmem will be initialized when plugins are loaded).  If you have any WP-Members pluggable functions that load in the theme functions.php, you'll need to move these to another location, such as a custom plugin file.  Keep in mind, pluggable functions are no longer the preferred way of customizing (and have not been for many years) as most customizations, if not all, can be handled by using the plugin's filter and action hooks.
+* IMPORTANT: WP-Members pluggable functions deprecated for use in theme functions.php.  WP-Members is now initialized when plugins are loaded, which is an earlier load action than previous versions.  If you have any WP-Members pluggable functions that load in the theme functions.php, you'll need to move these to another location, such as a custom plugin file.  Keep in mind, pluggable functions are no longer the preferred way of customizing (and have not been for many years) as most customizations, if not all, can be handled by using the plugin's filter and action hooks.
+* IMPORTANT: Legacy password reset (requiring username & email to send a new password via email) is fully obsolete.  Plugin now only sends a password reset link for the user to then access the site and set a new password (no passwords via email).
+* IMPORTANT: Legacy login error message is fully obsolete.  Legacy messages still used, in error message, but generation/display is now using the WP Error object class.
 
-= 3.4.9.7 =
+Bug fixes:
+* Fixes a bug in the login_link shortcode that caused an empty href value.
+* Fixes a bug in the login that causes double sessions.
+* Fixes a bug in wpmem_user_has_access() that returns false for checking a specified user ID if the check is run when no user is logged in.
+* Fixes a bug in wpmem_user_is_current() that throws a PHP error if the user does not have access to the requested membership (should return false in this instance).
+* Fixes a bug if WooCommerce registration is used and WP-Members fields are set to be included but no specific WP-Members fields are identified for inclusion (empty value).
+* Fixes a bug in the [wpmem_tos] shortcode if no URL is passed.
+* Fixes a bug in membership check if the user doesn't have the membership.
+* Fixes a bug in WP_Members::do_securify_rest() to check for a post ID, otherwise an error thrown when we try to check if the post is blocked.
+* Fixes a bug in the check to see if a restricted WooCommerce product is purchasable by the user.
+* Fixes a bug in the install routine when checking if index.php files exist in uploads folder that can cause the update process to fail.
+* Fixes a bug in the [wpmem_user_membership_posts] shortcode that caused the title of the list to be whatever the title of the last post was. It should display the name of the membership associated with the list instead.
 
-* Fixes a bug in the WooCommerce restricted product function that unintentionally restricts all products.
-* Fixes an undefined property ($style) in the main WP_Members object class.
-* Fixes escaped HTML in the logged in state of the sidebar widget (a bug introduced in 3.4.9.6).
-* Fixes escaped query string in password reset link and validation link (a bug introduced in 3.4.9.6).
+New features:
+* Adds a "novalidate" option by filter toggle to the reg/login forms (for disabling the default HTML5 validation on required fields).
+* Adds formatting filters (wpmem_field_shortcode_multi_args, wpmem_field_shortcode_multi_rows, wpmem_field_sc_multi_html) for field shortcode to customize HTML when displaying multiple select/multiple checkbox field results.
+* User registration/profile fields are now selectable for each state (reg/profile) in the Fields tab.
+* If WooCommerce is enabled, registration/profile fields are selectable for inclusion in WooCommerce checkout, registration, and profile forms.
+* Adds "drop-ins" functionality (officially; this has actually been in the plugin since 3.4).
+* Adds 'wpmem_user_profile_caps' filter hook for customizing the required user capability to inlcude the WP-Members tabs (experimental until confirmed with other extensions).
+* Adds custom object class to handle custom functions when the Import Users and Customers plugin is used and moderated registration or confirmation link settings are enabled. 
+* Adds wpmem_get_users()
+* Adds wpmem_create_file()
+* Adds new login error message if user is not confirmed with link to request a new confirmation link.
+* Adds a resend confirmation link form for the user.
+* Adds a resend confirmation link action in the admin (hoverlink in Users > All Users).
+* Adds default email function for emails that are not completely set up.
+* Adds direct shortcodes for [wpmem_login] and [wpmem_reg] that can be used in place of [wpmem_form] with the "login" or "reg" attributes.
+* Adds WP_CLI commands for creating and managing db views (views, create-view, drop-view).
+* Improves previous WP_CLI commands, now translation-ready and adds inline documentation (which extends to commandline help).
+* Code improvement: if user object is filtered in `wpmem_register_form_args`, the form values are based on the filtered user ID.
+* Code improvement: logout link in login shortcode uses `rawurlencode()` instead of `urlencode()`.
 
-= 3.4.9.6 =
+Security:
+* Interim security updates from 3.4.9.x series included and improved.
+* Security audit of shortcode object class.  Includes some of the updates from 3.4.9.x and expands on those.  All shortcode inputs from attributes is sanitized, all output is escaped.
+* Improved handling of user directories for uploaded files (when used).
 
-* Additional output escaping in the TOS dialog and the login/logout link function.
-* Updated packaged jQuery UI styles (1.14.0).
-
-= 3.4.9.5 =
-
-* Fixes a bug in the 3.4.9.4 release in an unannounced filter hook (that will be part of 3.5.0)
-
-= 3.4.9.4 =
-
-* Adds index.php to user upload directories to prevent directory browsing if not specifically disabled elsewhere.
-* Define $woo_connector object variable for PHP 8.2+ with the premium WooCommerce integration extension.
-
-= 3.4.9.3 =
-
-* Additional output escaping for user profile class.
-
-= 3.4.9.2 =
-
-* Early patch fix for export if memberships are enabled but there are no memberships defined (from 3.5.0 included fixes).
-* Early patch fix for fields data list in admin notification email if HTML formatted email is enabled (from 3.5.0 included fixes).
-* Security review and patches: Review shortcode object class for sanitizing all shortcode attributes and escaping all output.
-* Security review and patches: Review admin user profile class for sanitizing all input and escaping all output.
-
-= 3.4.9.1 =
-
-* Update the allowed fields in the [wpmem_fields] shortcode when enabled.
-* Update WP version compatibility.
+Other:
+* Updates wpmem_get_memberships() to return an empty array if there are no memberships (previous versions returned a false boolean).
+* Updates wpmem_email_to_user() to use tags instead of numeric tags, but numeric values are backward compatible.
+* Can resend welcome email (with confirmation link) when confirmation link setting is enabled. This can be via the bulk action menu (multiple users) or hover link (single user).
+* Removes obsolete file /admin/tab-options.php.  Users of the WP-Members User List extension version 1.9.4 and earlier will need to update the User List extension for full compatiblity.
+* Removes obsolete file /inc/dialogs.php 
+* Removes obsolete file /inc/email.php.  
+* No longer installs default email content on clean install. (See release notes re: default email content function.)
+* Removes stylesheet selector in admin.  Legacy stylesheets remain in the plugin package, so if they are selected, they will be used.  However, now to identify a stylesheet other than the default, you can simply enter the URL of the custom stylesheet location.
+* Updates dialogs array used by wpmem_get_text() to include all user facing strings (adds strings that have been added by special features over the past several updates).
+* Can no longer directly update from a version earlier than 3.0.0 (not that there are any out there; 92% of all installs are 3.2 or greater).  A 2.x version update is better off with a clean install.
 
 = 3.4.9 =
 
-* Security update for the [wpmem_fields] shortcode.  See the release notes on the support site for more detail.
 * Adds wpmem_field_sc_meta_keys filter hook to filter meta keys allowed by the [wpmem_fields] shortcode (default: fields that are in the WP-Members Fields array).
 * Adds wpmem_is_login(), wpmem_is_register(), and wpmem_is_profile() conditional functions.
+* Adds index.php to user upload directories to prevent directory browsing if not specifically disabled elsewhere.
+* Define $woo_connector object variable for PHP 8.2+ with the premium WooCommerce integration extension.
+* Early patch fix for export if memberships are enabled but there are no memberships defined (from 3.5.0 included fixes).
+* Early patch fix for fields data list in admin notification email if HTML formatted email is enabled (from 3.5.0 included fixes).
+* Security update: Review shortcode object class for sanitizing all shortcode attributes and escaping all output.
+* Security update: Review admin user profile class for sanitizing all input and escaping all output.
+* Security update: Restrict use of the [wpmem_fields] shortcode.  See the release notes on the support site for more detail.
+* Update WP version compatibility.
 
 = 3.4.8 =
 
@@ -188,6 +244,16 @@ WP-Members 3.4.9 is a security update. Backup prior to upgrading is recommended,
 * Security update in Fields tab reorder processing.
 * Code improvement udpates to RS Captcha validation processing.
 * Adds wpmem_get_form_state() API function (replaces checking $wpmem->regchk directly).
+* Destroy user sessions when deactivating a user.
+
+* Removes the following legacy files originally kept for backward compatibility. However, we have moved far beyond where those versions can be supported any longer.
+** /admin/post.php
+** all legacy translation files (legacy .pot maintained, but use polyglots language packs instead)
+
+* The following are obsolete, scheduled for removal at WP-Members 3.5.4:
+** /inc/dialogs.php
+** /inc/email.php
+** /admin/tab-options.php
 
 = 3.4.7 =
 
@@ -361,3 +427,4 @@ Bug fixes:
 * Fixes a bug in the signon process that causes the "rememberme" option to be ignored.
 * Fixes a bug in wpmem_is_blocked() that returns false when checking a specific post ID.
 * Fixes a bug in the autoexcerpt function that caused a double "read more" link when excerpt length was set to zero.
+

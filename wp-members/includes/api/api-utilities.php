@@ -7,13 +7,13 @@
  * 
  * This file is part of the WP-Members plugin by Chad Butler
  * You can find out more about this plugin at https://rocketgeek.com
- * Copyright (c) 2006-2023  Chad Butler
+ * Copyright (c) 2006-2025  Chad Butler
  * WP-Members(tm) is a trademark of butlerblog.com
  *
  * @package WP-Members
  * @subpackage WP-Members Utility Functions
  * @author Chad Butler 
- * @copyright 2006-2023
+ * @copyright 2006-2025
  */
 
 if ( ! function_exists( 'wpmem_securify' ) ):
@@ -195,9 +195,9 @@ function wpmem_format_date( $args ) {
 	 * @since 3.2.4
 	 * @deprecated 3.4.0 Use rktgk_format_date instead.
 	 *
-	 * @param arrag $args
+	 * @param array $args
 	 */
-	$args = apply_filters( 'wpmem_format_date_args', $args );
+	$args = apply_filters_deprecated( 'wpmem_format_date_args', array( $args ), '3.4.0', 'rktgk_format_date' );
 	return rktgk_format_date( $args );
 }
 
@@ -302,7 +302,7 @@ function wpmem_get_redirect_to( $args = array() ) {
 			$redirect_to = ( isset( $_SERVER['REQUEST_URI'] ) ) ? $_SERVER['REQUEST_URI'] : get_permalink();
 		}
 	}
-	return $redirect_to;
+	return esc_url_raw( $redirect_to );
 }
 
 /**
@@ -310,31 +310,62 @@ function wpmem_get_redirect_to( $args = array() ) {
  * 
  * @since 3.5.0
  * 
- * @param string $path Path to the directory to set an index.php.
+ * @param array $args {
+ *     The name, path, and contents of the file.
+ * 
+ *     @type string $path
+ *     @type string $name
+ *     @type string $contents
+ * }
  */
-function wpmem_create_index_file( $path ) {
-	$check_index = trailingslashit( $path ) . 'index.php';
-    if ( ! file_exists( $check_index ) ) {
-		$index = fopen( $check_index, "w" ) or die( "Unable to create index file!" );
-		$txt = "<?php // Silence is golden.";
-		fwrite( $index, $txt );
-		fclose( $index );
+function wpmem_create_file( $args ) {
+	$check_file = trailingslashit( $args['path'] ) . $args['name'];
+    if ( ! file_exists( $check_file ) ) {
+		$file = fopen( $check_file, "w" );
+		fwrite( $file, $args['contents'] );
+		fclose( $file );
 	}
 }
 
 /**
- * Creates an index file in a directory.
+ * Gets plugin upload base dir. 
  * 
  * @since 3.5.0
  * 
- * @param string $path Path to the directory to set an index.php.
+ * @return string $wpmem->upload_base
  */
-function wpmem_create_htaccess_file( $path ) {
-	$check_index = trailingslashit( $path ) . '.htaccess';
-    if ( ! file_exists( $check_index ) ) {
-		$index = fopen( $check_index, "w" ) or die( "Unable to create .htaccess file!" );
-		$txt = "Options -Indexes";
-		fwrite( $index, $txt );
-		fclose( $index );
+function wpmem_get_upload_base() {
+	global $wpmem;
+	if ( isset( $wpmem->upload_base ) ) {
+		return $wpmem->upload_base;
+	} else {
+		/** This filter is defined in class-wp-members-forms.php */
+		$args = apply_filters( 'wpmem_user_upload_dir', array( 'wpmem_dir' => "wpmembers" ) );
+		return $args['wpmem_dir'];
 	}
+}
+
+/**
+ * Gets WP-Members upload dirs as an extension of wp_upload_dir().
+ * 
+ * @since 3.5.0
+ * 
+ * @return array {
+ *     @type string $upload_vars
+ *     @type string $base_dir
+ *     @type string $wpmem_base_dir
+ *     @type string $wpmem_user_files_dir
+ * }
+ */
+function wpmem_upload_dir() {
+    $upload_vars  = wp_upload_dir( null, false );
+	$base_dir = $upload_vars['basedir'];
+	$wpmem_base_dir = trailingslashit( trailingslashit( $base_dir ) . wpmem_get_upload_base() );
+	$wpmem_user_files_dir = $wpmem_base_dir . 'user_files/';
+    return array( 
+        'upload_vars'          => $upload_vars,
+        'base_dir'             => $base_dir,
+        'wpmem_base_dir'       => $wpmem_base_dir,
+        'wpmem_user_files_dir' => $wpmem_user_files_dir
+    );
 }

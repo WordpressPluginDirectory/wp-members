@@ -7,15 +7,15 @@
  *
  * @package    RocketGeek_Utilities
  * @subpackage RocketGeek_Utilities_Utilities
- * @version    1.0.2
+ * @version    1.0.3
  *
  * @link       https://github.com/rocketgeek/rocketgeek-utilities/
  * @author     Chad Butler <https://butlerblog.com>
  * @author     RocketGeek <https://rocketgeek.com>
- * @copyright  Copyright (c) 2023 Chad Butler
+ * @copyright  Copyright (c) 2024 Chad Butler
  * @license    Apache-2.0
  *
- * Copyright [2023] Chad Butler, RocketGeek
+ * Copyright [2024] Chad Butler, RocketGeek
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -314,5 +314,24 @@ function rktgk_wc_checkout_fields() {
 		// Order checkout fields.
 		'order_comments',
 	);
+}
+endif;
+
+if ( ! function_exists( 'rktgk_plugin_pathinfo' ) ) :
+function rktgk_plugin_pathinfo( $magic_file ) {
+	$path_parts      = pathinfo( $magic_file );
+	$plugin_dir_path = plugin_dir_path( $magic_file );
+	$basename        = basename( $plugin_dir_path );
+
+	$path_info = array( 
+		'magic_file'    => $magic_file,
+		'path'          => $plugin_dir_path,
+		'url'           => plugin_dir_url ( $magic_file ),
+		'wp_name'       => trailingslashit( $basename ) . $path_parts['basename'],
+		'basename'      => $basename,
+		'slug'          => $path_parts['filename'],
+	);
+
+	return apply_filters( 'rktgk_plugin_pathinfo', $path_info, $magic_file );
 }
 endif;

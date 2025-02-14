@@ -17,6 +17,13 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 class WP_Members {
+
+	/**
+	 * The state of plugin install/upgrade. 
+	 * 
+	 * @since 3.5.0
+	 */
+	public $install_state;
 	
 	/**
 	 * Plugin version.
@@ -337,28 +344,6 @@ class WP_Members {
 	public $act_link = 0;
 	
 	/**
-	 * Temporary setting for password reset.
-	 * 
-	 * @todo Will default to 0 until 3.4.0, then 1 until 3.5.0 at which point we'll remove the old process.
-	 *
-	 * @since 3.3.5
-	 * @access public
-	 * @var string
-	 */
-	public $pwd_link = 1;
-	
-	/**
-	 * Setting for login error option.
-	 * 
-	 * @todo Will be deprecated in 3.5.0 when the WP login error is the only error.
-	 *
-	 * @since 3.3.5
-	 * @access public
-	 * @var string
-	 */
-	public $login_error = 1;
-	
-	/**
 	 * Default file upload directory.
 	 *
 	 * @since 3.3.8
@@ -474,15 +459,6 @@ class WP_Members {
 	public $menus_clone;
 
 	/**
-	 * The password reset object.
-	 * 
-	 * @since Unknown
-	 * @access public
-	 * @var object
-	 */
-	public $pwd_reset;
-
-	/**
 	 * The new account email activation object.
 	 * 
 	 * @since Unknown
@@ -499,8 +475,6 @@ class WP_Members {
 	 * @var object
 	 */
 	public $admin;
-
-	public $style;
 
 	/**
 	 * Objects for premium extensions.
@@ -519,6 +493,12 @@ class WP_Members {
 	public $usertrack;
 	public $user_list;
 	public $woo_connector;
+	public $excluded_meta;
+
+	// @deprecated
+	public $pwd_link;
+	public $login_error;
+	public $style; // @todo verify if this is deprecated.
 
 	/**
 	 * Plugin initialization function.
@@ -529,11 +509,11 @@ class WP_Members {
 	function __construct() {
 		
 		// Constants.
+		$this->slug = 'wp-members.php';
 		$this->path = plugin_dir_path( __DIR__ );
-		$this->name = $this->path . 'wp-members.php';
-		$this->slug = substr( basename( $this->name ), 0, -4 );
+		$this->name = trailingslashit( $this->path ) . $this->slug;
 		$this->url  = plugin_dir_url ( __DIR__ );
-	
+
 		$settings = get_option( 'wpmembers_settings' );
 		
 		// Validate that v3 settings are loaded.
@@ -541,7 +521,7 @@ class WP_Members {
 			|| $settings['version'] != $this->version
 			|| ! isset( $settings['db_version'] ) 
 			|| $settings['db_version'] != $this->db_version ) {
-			// Load installation routine and pdate settings.
+			// Load installation routine and update settings.
 			require_once $this->path . 'includes/install.php';
 			$settings = wpmem_do_install();
 		}
@@ -558,7 +538,11 @@ class WP_Members {
 
 		// Assemble settings.
 		foreach ( $settings as $key => $val ) {
-			$this->$key = $val;
+			// @todo Leaving error message and password reset settings values in for now for rollback backwards compatibility.
+			//       Later, we'll remove those values in the upgrade, so this can be cleaned up.
+			if ( 'pwd_link' != $key || 'login_error' != $key || 'shortcodes' != $key ) {
+				$this->{$key} = $val;
+			}
 		}
 
 		// Load dependent files.
@@ -567,12 +551,15 @@ class WP_Members {
 		// @todo Until I think of a better place to put this.
 		$this->optin = get_option( 'wpmembers_optin' );
 		
+		// Load user pages (login, register, user profile).
 		$this->load_user_pages();
-		$this->set_style();
+		
+		// Set the stylesheet. @todo "select_style" will be obsolete in 3.6.0 (maybe earlier).
+		$this->cssurl = ( '' != $settings['cssurl'] ) ? $this->cssurl : $this->url . 'assets/css/forms/generic-no-float' . wpmem_get_suffix() . '.css';
 		
 		$this->forms       = new WP_Members_Forms;         // Load forms.
 		$this->api         = new WP_Members_API;           // Load api.
-		$this->shortcodes  = new WP_Members_Shortcodes();  // Load shortcodes.
+		$this->shortcodes  = new WP_Members_Shortcodes( $settings );  // Load shortcodes.
 		$this->membership  = new WP_Members_Products();    // Load membership plans
 		$this->email       = new WP_Members_Email;         // Load email functions
 		$this->user        = new WP_Members_User( $this ); // Load user functions.
@@ -582,13 +569,6 @@ class WP_Members {
 		// @deprecated Clone menus are technically deprecated, but kept in the plugin for legacy users.
 		if ( $this->clone_menus ) {
 			$this->menus_clone = new WP_Members_Clone_Menus(); // Load clone menus.
-		}
-
-		if ( 1 == $this->pwd_link ) {
-			$this->pwd_reset  = new WP_Members_Pwd_Reset;
-		}
-		if ( 1 == $this->act_link ) {
-			$this->act_newreg = new WP_Members_Validation_Link;
 		}
 		
 		// @todo Is this a temporary fix?
@@ -600,7 +580,7 @@ class WP_Members {
 		 * @since 3.0
 		 * @deprecated 3.2.0 Use wpmem_after_init instead.
 		 */
-		do_action( 'wpmem_settings_loaded' );
+		do_action_deprecated( 'wpmem_settings_loaded', array(), '3.2.0', 'wpmem_after_init' );
 	
 		// Preload the expiration module, if available.
 		$exp_active = ( function_exists( 'wpmem_exp_init' ) || function_exists( 'wpmem_set_exp' ) ) ? true : false;
@@ -642,7 +622,6 @@ class WP_Members {
 		do_action( 'wpmem_load_hooks' );
 
 		// Add actions.
-		
 		add_action( 'init',                  array( $this, 'load_textdomain' ) );
 		add_action( 'init',                  array( $this->membership, 'add_cpt' ), 0 ); // Adds membership plans custom post type.
 		add_action( 'init',                  array( $this, 'load_dependent_classes' ) );
@@ -655,6 +634,8 @@ class WP_Members {
 		add_action( 'wp_enqueue_scripts',    array( $this, 'loginout_script' ) );
 		add_action( 'customize_register',    array( $this, 'customizer_settings' ) );
 		add_action( 'wp_footer',             array( $this, 'invisible_captcha' ) );
+
+		add_action( 'wpmem_after_init',      array( $this, 'after_wpmem_loaded' ) );
 
 		if ( is_admin() ) {
 			add_action( 'init', array( $this, 'load_admin' ) ); // @todo Check user role to load correct dashboard
@@ -676,7 +657,7 @@ class WP_Members {
 		foreach( $this->post_types as $post_type ) {
 			add_filter( "rest_prepare_{$post_type}", array( $this, 'do_securify_rest' ), 10, 3 );
 		}
-				   
+
 		//add_filter( 'query_vars',                array( $this, 'add_query_vars' ), 10, 2 ); // adds custom query vars
 		add_filter( 'get_pages',               array( $this, 'filter_get_pages' ) );
 		add_filter( 'wp_get_nav_menu_items',   array( $this, 'filter_nav_menu_items' ), null, 3 );
@@ -690,8 +671,7 @@ class WP_Members {
 		}
 
 		// Replace login error object, if profile page is set, AND it is not the wp-login.php page.
-		if ( 1 == $this->login_error 
-			&& isset( $this->user_pages['profile'] ) 
+		if ( isset( $this->user_pages['profile'] ) 
 			&& '' != $this->user_pages['profile']
 			&& 'wp-login.php' !== $GLOBALS['pagenow']
 		    && ! wpmem_is_woo_active() ) {
@@ -763,6 +743,8 @@ class WP_Members {
 	 *
 	 * @since 3.0.0
 	 * @since 3.3.0 Deprecated all but exp and trl constants.
+	 * 
+	 * @todo Can WPMEM_MOD_REG be deprecated?
 	 */
 	function load_constants() {
 		( ! defined( 'WPMEM_MOD_REG' ) ) ? define( 'WPMEM_MOD_REG', $this->mod_reg   ) : '';
@@ -822,6 +804,7 @@ class WP_Members {
 			require_once $this->path . 'includes/cli/class-wp-members-cli.php';
 			require_once $this->path . 'includes/cli/class-wp-members-cli-user.php';
 			require_once $this->path . 'includes/cli/class-wp-members-cli-settings.php';
+			require_once $this->path . 'includes/cli/class-wp-members-cli-db-tools.php';
 		}
 
 		require_once $this->path . 'includes/deprecated.php';
@@ -936,16 +919,15 @@ class WP_Members {
 				break;
 
 			case 'pwdreset':
-				global $wpmem;
-				if ( 1 == $wpmem->pwd_link ) {
-					$regchk = $this->user->password_update( 'link' );
-				} else {
-					$regchk = $this->user->password_update( 'reset' );
-				}
+				$regchk = $this->user->password_update( 'link' );
 				break;
 			
 			case 'getusername':
 				$regchk = $this->user->retrieve_username();
+				break;
+
+			case 'reconfirm':
+				$regchk = $this->user->resend_confirm();
 				break;
 			
 			case 'register':
@@ -1262,55 +1244,59 @@ class WP_Members {
 	 * @return
 	 */
 	function do_securify_rest( $response, $post, $request ) {
-		
-		if ( ! is_user_logged_in() ) { // @todo This needs to be changed to check for whether the user has access (for internal requests).
-			// Response for restricted content
-			$block_value = wpmem_is_blocked( $response->data['id'] );
-			if ( $block_value ) {
+	
+		// Only run if $response contains "id", otherwise we can't check it as blocked (since it would not contain a post ID).
+		if ( isset( $response->data['id'] ) ) {
 
-				/**
-				 * 
-				 * 
-				 * @since 3.4.7
-				 * 
-				 * @param 
-				 * @param WP_REST_Response $response The response object.
-				 * @param WP_Post          $post     Post object.
-				 * @param WP_REST_Request  $request  Request object. 
-				 */
-				$drop = apply_filters( "wpmem_securify_rest_{$post->post_type}_drop_response_data", array(), $response, $post, $request );
+			if ( ! is_user_logged_in() ) { // @todo This needs to be changed to check for whether the user has access (for internal requests).
+				// Response for restricted content
+				$block_value = wpmem_is_blocked( $response->data['id'] );
+				if ( $block_value ) {
 
-				foreach ( $drop as $dropped_key ) {
-					$response->data[ $dropped_key ] = array();
-				}
-
-				if ( isset( $response->data['content']['rendered'] ) ) {
 					/**
-					 * Filters restricted content message.
-					 *
-					 * @since 3.3.2
-					 * @since 3.3.4 Added $response, $post, and $request
-					 *
-					 * @param string $message
+					 * 
+					 * 
+					 * @since 3.4.7
+					 * 
+					 * @param 
+					 * @param WP_REST_Response $response The response object.
+					 * @param WP_Post          $post     Post object.
+					 * @param WP_REST_Request  $request  Request object. 
 					 */
-					$response->data['content']['rendered'] = apply_filters( "wpmem_securify_rest_{$post->post_type}_content", __( "You must be logged in to view this content.", 'wp-members' ), $response, $post, $request );
-				}
-				if ( isset( $response->data['excerpt']['rendered'] ) ) {
-					/**
-					 * Filters restricted excerpt message.
-					 *
-					 * @since 3.3.2
-					 * @since 3.3.4 Added $response, $post, and $request
-					 *
-					 * @param string $message
-					 */
-					$response->data['excerpt']['rendered'] = apply_filters( "wpmem_securify_rest_{$post->post_type}_excerpt", __( "You must be logged in to view this content.", 'wp-members' ), $response, $post, $request );
-				}
-			}
+					$drop = apply_filters( "wpmem_securify_rest_{$post->post_type}_drop_response_data", array(), $response, $post, $request );
 
-			// Response for hidden content. @todo This needs to be changed to check for whether the user has access (for internal requests).
-			if ( ! is_admin() && in_array( $post->ID, $this->hidden_posts() ) ) {
-				return new WP_REST_Response( __( 'The page you are looking for does not exist', 'wp-members' ), 404 );
+					foreach ( $drop as $dropped_key ) {
+						$response->data[ $dropped_key ] = array();
+					}
+
+					if ( isset( $response->data['content']['rendered'] ) ) {
+						/**
+						 * Filters restricted content message.
+						 *
+						 * @since 3.3.2
+						 * @since 3.3.4 Added $response, $post, and $request
+						 *
+						 * @param string $message
+						 */
+						$response->data['content']['rendered'] = apply_filters( "wpmem_securify_rest_{$post->post_type}_content", wpmem_get_text( 'rest_content_rendered' ), $response, $post, $request );
+					}
+					if ( isset( $response->data['excerpt']['rendered'] ) ) {
+						/**
+						 * Filters restricted excerpt message.
+						 *
+						 * @since 3.3.2
+						 * @since 3.3.4 Added $response, $post, and $request
+						 *
+						 * @param string $message
+						 */
+						$response->data['excerpt']['rendered'] = apply_filters( "wpmem_securify_rest_{$post->post_type}_excerpt", wpmem_get_text( 'rest_excerpt_rendered' ), $response, $post, $request );
+					}
+				}
+
+				// Response for hidden content. @todo This needs to be changed to check for whether the user has access (for internal requests).
+				if ( ! is_admin() && in_array( $post->ID, $this->hidden_posts() ) ) {
+					return new WP_REST_Response( wpmem_get_text( 'rest_404' ), 404 );
+				}
 			}
 		}
 		return $response;
@@ -1326,7 +1312,7 @@ class WP_Members {
 	 * @return string $content
 	 */
 	function reg_securify( $content ) {
-		global $wpmem, $wpmem_themsg;
+		global $wpmem_themsg;
 		$nonce = wpmem_get( 'reg_nonce', false, 'get' );
 		if ( $nonce && wp_verify_nonce( $nonce, 'register_redirect' ) ) {
 			$content = wpmem_get_display_message( 'success', $wpmem_themsg );
@@ -1349,13 +1335,11 @@ class WP_Members {
 	 *
 	 * @since 3.2.0
 	 *
-	 * @global object $wpdb
 	 * @return array  $hidden
 	 */
 	function hidden_posts() {
-		global $wpdb;
 		$hidden = get_option( 'wpmem_hidden_posts' );
-		if ( false === $hidden ) {
+		if ( false == $hidden ) {
 			$hidden = $this->update_hidden_posts();
 		}
 		return $hidden;
@@ -1390,7 +1374,7 @@ class WP_Members {
 				$hidden[] = $result->id;
 			}
 		}
-		update_option( 'wpmem_hidden_posts', $hidden );
+		update_option( 'wpmem_hidden_posts', $hidden, true );
 		return $hidden;
 	}
 	
@@ -1415,14 +1399,14 @@ class WP_Members {
 			$hidden = $this->hidden_posts();
 		} else {
 			// If the user is logged in.
-			if ( 1 == $this->enable_products ) {
+			if ( wpmem_is_enabled( 'enable_products' ) ) {
 				// Get user product access.
 				$hidden = $this->hidden_posts();
 				$hidden = ( is_array( $hidden ) ) ? $hidden : array();
 
 				// Remove posts with a product the user has access to.
-				foreach ( $this->membership->products as $key => $value ) {
-					if ( isset( $this->user->access[ $key ] ) && ( true == $this->user->access[ $key ] || $this->user->is_current( $this->user->access[ $key ] ) ) ) {
+				foreach ( wpmem_get_memberships() as $key => $value ) {
+					if ( wpmem_user_has_access( $key ) ) {
 						foreach ( $hidden as $post_id ) {
 							if ( 1 == get_post_meta( $post_id, wpmem_get_membership_meta( $key ), true ) ) {
 								$hidden_key = array_search( $post_id, $hidden );
@@ -1528,12 +1512,10 @@ class WP_Members {
 	 *
 	 * @since 3.2.4
 	 *
-	 * @global object $wpmem
 	 * @param  string $where
 	 * @return string $where
 	 */
 	function filter_get_adjacent_post_where( $where ) {
-		global $wpmem;
 		if ( ! is_user_logged_in() ) {
 			$hidden_posts = $this->get_hidden_posts();
 			if ( ! empty( $hidden_posts ) ) {
@@ -1569,31 +1551,20 @@ class WP_Members {
 	}
 	
 	/**
-	 * Sets the stylesheet URL.
-	 *
-	 * @since 3.3.0
-	 */
-	function set_style() {
-		$this->cssurl = ( 'use_custom' == $this->select_style ) ? $this->cssurl : $this->url . 'assets/css/forms/' . $this->select_style . wpmem_get_suffix() . '.css'; // Set the stylesheet.
-	}
-	
-	/**
 	 * Returns a requested text string.
 	 *
 	 * This function manages all of the front-end facing text.
 	 * All defaults can be filtered using wpmem_default_text_strings.
 	 *
 	 * @since 3.1.0
-	 *
-	 * @global object $wpmem
+	 * @deprecated 3.5.0 Use wpmem_get_text() Make sure "official" extensions do not use $wpmem->get_text() before making obsolete.
 	 *
 	 * @param  string $str
 	 * @return string $text
 	 */	
 	function get_text( $str ) {
-		global $wpmem;
-		return $wpmem->dialogs->get_text( $str );
-	} // End of get_text().
+		return $this->dialogs->get_text( $str );
+	}
 	
 	/**
 	 * Initializes the WP-Members widget.
@@ -1635,15 +1606,12 @@ class WP_Members {
 	 * Outputs login/out script for the footer.
 	 *
 	 * @since 3.2.0
-	 *
-	 * @global object $wpmem
 	 */
 	public function do_loginout_script() {
-		global $wpmem;
 		/** This filter is defined in /includes/api/api.php */
 		$logout = apply_filters( 'wpmem_logout_link', add_query_arg( 'a', 'logout' ) );
 		?><script type="text/javascript">
-			jQuery('.wpmem_loginout').html('<a class="login_button" href="<?php echo esc_url( $logout ); ?>"><?php echo $this->get_text( 'menu_logout' ); ?></a>');
+			jQuery('.wpmem_loginout').html('<a class="login_button" href="<?php echo esc_url( $logout ); ?>"><?php echo wpmem_get_text( 'menu_logout' ); ?></a>');
 		</script><?php
 	}
 		
@@ -1700,24 +1668,18 @@ class WP_Members {
 	 *
 	 * @since 2.6
 	 * @since 3.2.3 Moved to WP_Members class.
-	 *
-	 * @global object $wpmem The WP_Members object. 
 	 */
 	function enqueue_style() {
-		global $wpmem;
-		wp_enqueue_style ( 'wp-members', wpmem_force_ssl( $wpmem->cssurl ), false, $wpmem->version );
+		wp_enqueue_style ( 'wp-members', wpmem_force_ssl( $this->cssurl ), false, $this->version );
 	}
 
 	/**
 	 * Loads the wp-login.php stylesheet.
 	 *
 	 * @since 3.3.0
-	 *
-	 * @global stdClass $wpmem
 	 */
 	function enqueue_style_wp_login() {
-		global $wpmem;
-		wp_enqueue_style( 'wp-members', $wpmem->url . 'assets/css/wp-login' . wpmem_get_suffix() . '.css', false, $wpmem->version );
+		wp_enqueue_style( 'wp-members', $this->url . 'assets/css/wp-login' . wpmem_get_suffix() . '.css', false, $this->version );
 	}
 	
 	/**
@@ -1728,21 +1690,20 @@ class WP_Members {
 	 * @since 3.2.5 Check if post object exists.
 	 *
 	 * @global object $post  The post object.
-	 * @global object $wpmem The WP_Members object.
 	 *
 	 * @param  string $content
 	 * @return string $content
 	 */
 	function do_excerpt( $content ) {
 
-		global $post, $more, $wpmem;
+		global $post, $more;
 		
 		if ( is_object( $post ) ) {
 			
 			$post_id   = $post->ID;
 			$post_type = $post->post_type;
 
-			$autoex = ( isset( $wpmem->autoex[ $post->post_type ] ) && 1 == $wpmem->autoex[ $post->post_type ]['enabled'] ) ? $wpmem->autoex[ $post->post_type ] : false;
+			$autoex = ( isset( $this->autoex[ $post->post_type ] ) && 1 == $this->autoex[ $post->post_type ]['enabled'] ) ? $this->autoex[ $post->post_type ] : false;
 
 			// Is there already a 'more' link in the content?
 			$has_more_link = ( stristr( $content, 'class="more-link"' ) ) ? true : false;
@@ -1761,13 +1722,13 @@ class WP_Members {
 						$more_link      = '';
 					} else {
 						// The default $more_link_text.
-						if ( isset( $wpmem->autoex[ $post->post_type ]['text'] ) && '' != $wpmem->autoex[ $post->post_type ]['text'] ) {
-							$more_link_text = __( $wpmem->autoex[ $post->post_type ]['text'], 'wp-members' );
+						if ( isset( $this->autoex[ $post->post_type ]['text'] ) && '' != $this->autoex[ $post->post_type ]['text'] ) {
+							$more_link_text = __( $this->autoex[ $post->post_type ]['text'], 'wp-members' );
 						} else {
 							$more_link_text = __( '(more&hellip;)' );
 						}
 						// The default $more_link.
-						$more_link = ' <a href="'. get_permalink( $post->ID ) . '" class="more-link">' . $more_link_text . '</a>';
+						$more_link = ' <a href="'. esc_url( get_permalink( $post->ID ) ) . '" class="more-link">' . esc_attr( $more_link_text ) . '</a>';
 					}
 
 					// Apply the_content_more_link filter if one exists (will match up all 'more' link text).
@@ -1803,7 +1764,7 @@ class WP_Members {
 					// Are we only excerpting blocked content?
 					if ( $args['blocked_only'] ) {
 						$post_meta = get_post_meta( $post->ID, '_wpmem_block', true );
-						if ( 1 == $wpmem->block[ $post->post_type ] ) {
+						if ( 1 == $this->block[ $post->post_type ] ) {
 							// Post type is blocked, if post meta unblocks it, don't do excerpt.
 							$do_excerpt = ( "0" == $post_meta ) ? false : true;
 						} else {
@@ -1951,8 +1912,8 @@ class WP_Members {
 			'format'             => ( isset( $args['format']             ) ) ? $args['format']             : 'link',
 			'login_redirect_to'  => ( isset( $args['login_redirect_to']  ) ) ? $args['login_redirect_to']  : wpmem_current_url(),
 			'logout_redirect_to' => ( isset( $args['logout_redirect_to'] ) ) ? $args['logout_redirect_to'] : wpmem_current_url(), // @todo - This is not currently active.
-			'login_text'         => ( isset( $args['login_text']         ) ) ? $args['login_text']         : __( 'log in',  'wp-members' ),
-			'logout_text'        => ( isset( $args['logout_text']        ) ) ? $args['logout_text']        : __( 'log out', 'wp-members' ),
+			'login_text'         => ( isset( $args['login_text']         ) ) ? $args['login_text']         : wpmem_get_text( 'loginout_login_text' ),
+			'logout_text'        => ( isset( $args['logout_text']        ) ) ? $args['logout_text']        : wpmem_get_text( 'loginout_logout_text' ),
 			'class'              => ( isset( $args['class']              ) ) ? $args['class']              : 'wpmem_loginout_link',
 			'id'                 => ( isset( $args['id']                 ) ) ? $args['id']                 : 'wpmem_loginout_link',
 		);
@@ -1967,11 +1928,11 @@ class WP_Members {
 		}
 		
 		if ( 'button' == $args['format'] ) {
-			$html = '<form action="' . esc_url_raw( $link ) . '" id="' . esc_attr( $args['id'] ) . '" class="' . esc_attr( $args['class'] ) . '">';
+			$html = '<form action="' . esc_url( $link ) . '" id="' . esc_attr( $args['id'] ) . '" class="' . esc_attr( $args['class'] ) . '">';
 			$html.= ( is_user_logged_in() ) ? '<input type="hidden" name="a" value="logout" />' : '';
 			$html.= '<input type="submit" value="' . esc_attr( $text ) . '" /></form>';
 		} else {
-			$html = sprintf( '<a href="%s" id="%s" class="%s">%s</a>', esc_url_raw( $link ), esc_attr( $args['id'] ), esc_attr( $args['class'] ), esc_attr( $text ) );
+			$html = sprintf( '<a href="%s" id="%s" class="%s">%s</a>', esc_url( $link ), esc_attr( $args['id'] ), esc_attr( $args['class'] ), esc_attr( $text ) );
 		}
 		return $html;
 	}
@@ -2006,4 +1967,11 @@ class WP_Members {
 	public function has_errors() {
 		return ( is_wp_error( $this->error ) && $this->error->has_errors() ) ? true : false;
 	}
+
+	public function after_wpmem_loaded() {
+		if ( wpmem_is_enabled( 'act_link' ) ) {
+			$this->act_newreg = new WP_Members_Validation_Link;
+		}
+	}
+
 } // End of WP_Members class.

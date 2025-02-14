@@ -6,12 +6,12 @@
  * 
  * This file is part of the WP-Members plugin by Chad Butler
  * You can find out more about this plugin at https://rocketgeek.com
- * Copyright (c) 2006-2023  Chad Butler
+ * Copyright (c) 2006-2025  Chad Butler
  * WP-Members(tm) is a trademark of butlerblog.com
  *
  * @package WP-Members
  * @author Chad Butler
- * @copyright 2006-2023
+ * @copyright 2006-2025
  *
  * Functions included:
  * - wpmem_admin
@@ -106,6 +106,10 @@ function wpmem_admin_action( $action ) {
 
 	case 'update_captcha':
 		$did_update = WP_Members_Admin_Tab_Captcha::update();
+		break;
+
+	case 'update_shortcodes':
+		$did_update = WP_Members_Admin_Tab_Shortcodes::update();
 		break;
 	}
 

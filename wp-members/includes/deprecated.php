@@ -8,12 +8,12 @@
  * 
  * This file is part of the WP-Members plugin by Chad Butler
  * You can find out more about this plugin at https://rocketgeek.com
- * Copyright (c) 2006-2023  Chad Butler
+ * Copyright (c) 2006-2025  Chad Butler
  * WP-Members(tm) is a trademark of butlerblog.com
  *
  * @package   WP-Members
  * @author    Chad Butler 
- * @copyright 2006-2023
+ * @copyright 2006-2025
  */
 
 // Exit if accessed directly.
@@ -60,8 +60,8 @@ function wpmem_inc_status() {
 	/** This filter is defined in /includes/api/api.php */
 	$logout = apply_filters( 'wpmem_logout_link', $url . '/?a=logout' );
 
-	$status = '<p>' . esc_html( sprintf( wpmem_get_text( 'sb_login_status' ), $user_login ) )
-		. ' | <a href="' . esc_url_raw( $logout ) . '">' . esc_html( wpmem_get_text( 'sb_logout_link' ) ) . '</a></p>';
+	$status = '<p>' . esc_html( sprintf( wpmem_get_text( 'sb_login_status' ) ), $user_login )
+		. ' | <a href="' . esc_url_raw( $logout ) . '">' . wpmem_get_text( 'sb_logout_link' ) . '</a></p>';
 
 	return $status;
 }
@@ -369,35 +369,35 @@ function wpmem_get_captcha_err( $wpmem_captcha_err ) {
 	switch ( $wpmem_captcha_err ) {
 
 	case "invalid-site-public-key":
-		$wpmem_captcha_err = __( 'We were unable to validate the public key.', 'wp-members' );
+		$wpmem_captcha_err = esc_html__( 'We were unable to validate the public key.', 'wp-members' );
 		break;
 
 	case "invalid-site-public-key":
-		$wpmem_captcha_err = __( 'We were unable to validate the private key.', 'wp-members' );
+		$wpmem_captcha_err = esc_html__( 'We were unable to validate the private key.', 'wp-members' );
 		break;
 
 	case "invalid-request-cookie":
-		$wpmem_captcha_err = __( 'The challenge parameter of the verify script was incorrect.', 'wp-members' );
+		$wpmem_captcha_err = esc_html__( 'The challenge parameter of the verify script was incorrect.', 'wp-members' );
 		break;
 
 	case "incorrect-captcha-sol":
-		$wpmem_captcha_err = __( 'The CAPTCHA solution was incorrect.', 'wp-members' );
+		$wpmem_captcha_err = esc_html__( 'The CAPTCHA solution was incorrect.', 'wp-members' );
 		break;
 
 	case "verify-params-incorrect":
-		$wpmem_captcha_err = __( 'The parameters to verify were incorrect', 'wp-members' );
+		$wpmem_captcha_err = esc_html__( 'The parameters to verify were incorrect', 'wp-members' );
 		break;
 
 	case "invalid-referrer":
-		$wpmem_captcha_err = __( 'reCAPTCHA API keys are tied to a specific domain name for security reasons.', 'wp-members' );
+		$wpmem_captcha_err = esc_html__( 'reCAPTCHA API keys are tied to a specific domain name for security reasons.', 'wp-members' );
 		break;
 
 	case "recaptcha-not-reachable":
-		$wpmem_captcha_err = __( 'The reCAPTCHA server was not reached.  Please try to resubmit.', 'wp-members' );
+		$wpmem_captcha_err = esc_html__( 'The reCAPTCHA server was not reached.  Please try to resubmit.', 'wp-members' );
 		break;
 
 	case 'really-simple':
-		$wpmem_captcha_err = __( 'You have entered an incorrect code value. Please try again.', 'wp-members' );
+		$wpmem_captcha_err = esc_html__( 'You have entered an incorrect code value. Please try again.', 'wp-members' );
 		break;
 	}
 

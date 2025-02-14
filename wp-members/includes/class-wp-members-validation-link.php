@@ -34,10 +34,10 @@ class WP_Members_Validation_Link {
 	public function __construct() {
 		
 		$defaults = array(
-			'email_text'        => __( 'Click to validate your account: ',       'wp-members' ),
-			'success_message'   => __( 'Thank you for validating your account.', 'wp-members' ),
-			'invalid_message'   => __( 'Validation key was expired or invalid',  'wp-members' ),
-			'moderated_message' => __( 'Your account is now pending approval',   'wp-members' ),
+			'email_text'        => wpmem_get_text( 'validate_email_text' ), // 'Click to validate your account: '
+			'success_message'   => wpmem_get_text( 'validate_success_msg' ), // 'Thank you for validating your account.'
+			'invalid_message'   => wpmem_get_text( 'validate_invalid_msg' ), // 'Validation key was expired or invalid'
+			'moderated_message' => wpmem_get_text( 'validate_moderated_msg' ), // 'Your account is now pending approval'
 		);
 		
 		/**
@@ -58,6 +58,7 @@ class WP_Members_Validation_Link {
 		add_filter( 'wpmem_email_filter', array( $this, 'add_key_to_email'   ), 10, 3 );
 		add_filter( 'the_content',        array( $this, 'validation_success' ), 100 );
 		
+		add_action( 'wpmem_account_validation_success', array( $this, 'set_as_logged_in' ), 9 );
 		add_action( 'wpmem_account_validation_success', array( $this, 'send_welcome' ) );
 		add_action( 'wpmem_account_validation_success', array( $this, 'notify_admin' ) );
 	}
@@ -67,7 +68,6 @@ class WP_Members_Validation_Link {
 	 *
 	 * @since 3.3.5
 	 *
-	 * @global stdClass $wpmem
 	 * @param  array    $arr
 	 * @param  array    $wpmem_fields
 	 * @param  array    $field_data
@@ -75,13 +75,11 @@ class WP_Members_Validation_Link {
 	 */
 	public function add_key_to_email( $arr, $wpmem_fields, $field_data ) {
 
-		global $wpmem;
-
 		// Only do this for new registrations.
-		$email_type = ( 1 == $wpmem->mod_reg ) ? 'newmod' : 'newreg';
+		$email_type = ( wpmem_is_enabled( 'mod_reg' ) ) ? 'newmod' : 'newreg';
 		if ( $arr['toggle'] == $email_type ) {
 
-			$user = get_user_by( 'ID', $arr['user_id'] );
+			$user = get_user_by( 'ID', intval( $arr['user_id'] ) );
 
 			/**
 			 * Gets the user based on the password key.
@@ -129,14 +127,16 @@ class WP_Members_Validation_Link {
 			 * @param  array   $query_args
 			 */
 			$link = apply_filters( 'wpmem_validation_link', $link, $url, $query_args );
+
+			$sanitized_link = esc_url_raw( $link );
 		
 			// Does email body have the [confirm_link] shortcode?
 			if ( strpos( $arr['body'], '[confirm_link]' ) ) {
-				$arr['body'] = str_replace( '[confirm_link]', esc_url_raw( $link ), $arr['body'] );
+				$arr['body'] = str_replace( '[confirm_link]', $sanitized_link, $arr['body'] );
 			} else {
 				// Add text and link to the email body.
 				$arr['body'] = $arr['body'] . "\r\n"
-					. $this->email_text . ' ' . esc_url_raw( $link );
+					. $this->email_text . ' ' . $sanitized_link;
 			}
 		}
 
@@ -149,8 +149,6 @@ class WP_Members_Validation_Link {
 	 * @since 3.3.5
 	 */
 	public function validate_key() {
-		
-		global $wpmem;
 		
 		// Check for validation key.
 		$key   = ( 'confirm' == wpmem_get( 'a', false, 'get' ) ) ? wpmem_get( 'key',   false, 'get' ) : false;
@@ -182,34 +180,6 @@ class WP_Members_Validation_Link {
 			if ( ! is_wp_error( $user ) ) {
 
 				$this->validated = true;
-
-				// If registration is not moderated, set the user as logged in.
-				if ( 1 != $wpmem->mod_reg ) {
-					/**
-					 * Sets the WP auth cookie.
-					 *
-					 * May trigger the following WP filter/actions:
-					 * - auth_cookie_expiration
-					 * - secure_auth_cookie
-					 * - secure_logged_in_cookie
-					 * - set_auth_cookie
-					 * - set_logged_in_cookie
-					 * - send_auth_cookies
-					 *
-					 * @see https://developer.wordpress.org/reference/functions/wp_set_auth_cookie/
-					 */
-					wp_set_auth_cookie( $user->ID, true );
-
-					/**
-					 * Sets the user as logged in.
-					 *
-					 * May trigger the folloiwng WP filter/actions:
-					 * - set_current_user
-					 *
-					 * @see https://developer.wordpress.org/reference/functions/wp_set_current_user/
-					 */
-					wp_set_current_user( $user->ID );
-				}
 
 				// Delete validation_key meta and set active.
 				$this->clear_activation_key( $user->ID );
@@ -279,7 +249,8 @@ class WP_Members_Validation_Link {
 	 */ 
 	function check_validated( $user, $username, $password ) {
 		if ( ! is_wp_error( $user ) && ! is_null( $user ) && false == wpmem_is_user_confirmed( $user->ID ) ) {
-			$user = new WP_Error( 'authentication_failed', __( '<strong>ERROR</strong>: User has not confirmed their account.', 'wp-members' ) );
+			$error_message = sprintf( wpmem_get_text( 'login_not_confirmed' ), '<strong>', '</strong>', '<a href="' . esc_url_raw( wpmem_reconfirm_url() ) . '">', '</a>' );
+			$user = new WP_Error( 'authentication_failed', $error_message );
 		}
 		/**
 		 * Filters the check_validated result.
@@ -294,6 +265,43 @@ class WP_Members_Validation_Link {
 	}
 	
 	/**
+	 * Sets user as logged in upon validation (if moderated reg is not enabled).
+	 *
+	 * @since 3.5.0
+	 *
+	 * @param int $user_id
+	 */
+	public function set_as_logged_in( $user_id ) {
+		// If registration is not moderated, set the user as logged in.
+		if ( ! wpmem_is_enabled( 'mod_reg' ) ) {
+			/**
+			 * Sets the WP auth cookie.
+			 *
+			 * May trigger the following WP filter/actions:
+			 * - auth_cookie_expiration
+			 * - secure_auth_cookie
+			 * - secure_logged_in_cookie
+			 * - set_auth_cookie
+			 * - set_logged_in_cookie
+			 * - send_auth_cookies
+			 *
+			 * @see https://developer.wordpress.org/reference/functions/wp_set_auth_cookie/
+			 */
+			wp_set_auth_cookie( $user_id, true );
+
+			/**
+			 * Sets the user as logged in.
+			 *
+			 * May trigger the folloiwng WP filter/actions:
+			 * - set_current_user
+			 *
+			 * @see https://developer.wordpress.org/reference/functions/wp_set_current_user/
+			 */
+			wp_set_current_user( $user_id );
+		}
+	}
+
+	/**
 	 * Sends the welcome email to the user upon validation of their email.
 	 *
 	 * @since 3.3.5
@@ -303,8 +311,8 @@ class WP_Members_Validation_Link {
 	 */
 	public function send_welcome( $user_id ) {
 		if ( $this->send_welcome ) {
-			$email_to_send = ( get_option( 'wpmembers_email_validated' ) ) ? 6 : 2;
-			wpmem_email_to_user( $user_id, '', $email_to_send  );
+			$email_to_send = ( wpmem_get_email_settings( 'wpmembers_email_validated' ) ) ? 'validated' : 'modreg';
+			wpmem_email_to_user( array( 'user_id'=>$user_id, 'tag'=>$email_to_send ) );
 		}
 	}
 	
@@ -317,8 +325,7 @@ class WP_Members_Validation_Link {
 	 */
 	public function notify_admin( $user_id ) {
 		if ( $this->send_notify ) {
-			// global $wpmem;
-			wpmem_notify_admin( $user_id ); //, $wpmem->fields );
+			wpmem_notify_admin( $user_id );
 		}	
 	}
 	
@@ -331,7 +338,7 @@ class WP_Members_Validation_Link {
 	 */
 	public function clear_activation_key( $user_id ) {
 		global $wpdb;
-		$result = $wpdb->update( $wpdb->users, array( 'user_activation_key' => '', ), array( 'ID' => $user_id ) );
+		$result = $wpdb->update( $wpdb->users, array( 'user_activation_key' => '', ), array( 'ID' => intval( $user_id ) ) );
 		//clean_user_cache( $user_id );
 	}
 
@@ -343,7 +350,7 @@ class WP_Members_Validation_Link {
 	 * @param mixed $user user ID (int)|WP_User (object).
 	 */
 	public function set_validation_key( $user ) {
-		$user = ( is_object( $user ) ) ? $user : get_user_by( 'ID', $user );
+		$user = ( is_object( $user ) ) ? $user : get_user_by( 'ID', intval( $user ) );
 		return get_password_reset_key( $user );
 	}
 	

@@ -6,12 +6,12 @@
  * 
  * This file is part of the WP-Members plugin by Chad Butler
  * You can find out more about this plugin at https://rocketgeek.com
- * Copyright (c) 2006-2023  Chad Butler
+ * Copyright (c) 2006-2025  Chad Butler
  * WP-Members(tm) is a trademark of butlerblog.com
  *
  * @package WP-Members
  * @author Chad Butler
- * @copyright 2006-2023
+ * @copyright 2006-2025
  */
 
 // Exit if accessed directly.
@@ -76,7 +76,7 @@ class WP_Members_Admin_Tab_Dropins {
 
 				// If there are any changes, update settings.
 				if ( ! empty( $settings ) ) {
-					update_option( 'wpmembers_dropins', $settings );
+					update_option( 'wpmembers_dropins', $settings, false );
 				} else {
 					// Delete if empty.
 					delete_option( 'wpmembers_dropins' );
@@ -85,7 +85,7 @@ class WP_Members_Admin_Tab_Dropins {
 				$wpmem_dropins_saved = true;
 			}
 			if ( $wpmem_dropins_saved ) { ?>
-			<div id="message" class="message"><p><strong><?php _e( 'WP-Members Dropin settings were updated', 'wp-members' ); ?></strong></p></div>
+			<div id="message" class="message"><p><strong><?php esc_html_e( 'WP-Members Dropin settings were updated', 'wp-members' ); ?></strong></p></div>
 			<?php } ?>
 
 	<?php
@@ -213,9 +213,9 @@ class WP_Members_Admin_Tab_Dropins {
 		include_once( $wpmem->path . 'includes/admin/tabs/class-wp-members-dropins-table.php' );
 		$table = new WP_Members_Dropins_Table();
 
-		$heading  = __( 'Manage Dropins', 'wp-members' );
-		$loc_info = __( 'Current dropin folder: ', 'wp-members' );
-		$loc_desc = __( 'You can change location of the dropin folder using the <code>wpmem_dropin_folder</code> filter.', 'wp-members' );
+		$heading  = esc_html__( 'Manage Dropins', 'wp-members' );
+		$loc_info = esc_html__( 'Current dropin folder: ', 'wp-members' );
+		$loc_desc = esc_html__( 'You can change location of the dropin folder using the <code>wpmem_dropin_folder</code> filter.', 'wp-members' );
 		echo '<div class="wrap">';
 		printf( '<h3 class="title">%s</h3>', $heading );
 		printf( '<p><strong>%s</strong></p>', $loc_info );

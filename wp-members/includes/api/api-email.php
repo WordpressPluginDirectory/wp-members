@@ -4,13 +4,13 @@
  * 
  * This file is part of the WP-Members plugin by Chad Butler
  * You can find out more about this plugin at https://rocketgeek.com
- * Copyright (c) 2006-2023  Chad Butler
+ * Copyright (c) 2006-2025  Chad Butler
  * WP-Members(tm) is a trademark of butlerblog.com
  *
  * @package WP-Members
  * @subpackage WP-Members API Functions
  * @author Chad Butler 
- * @copyright 2006-2023
+ * @copyright 2006-2025
  */
 
 /**
@@ -54,9 +54,9 @@ function wpmem_mail_from_name() {
  *       is named something other than "wp-members".
  */
 if ( ! function_exists( 'wpmem_mail_content_type' ) ):
-function wpmem_mail_content_type() {
+function wpmem_mail_content_type( $content_type = 'text/plain' ) {
 	global $wpmem;
-	return $wpmem->email->content_type();
+	return $wpmem->email->content_type( $content_type );
 }
 endif;
 
@@ -84,10 +84,10 @@ endif;
  * }
  * @param  string $password      Password from the registration process.
  * @param  string $tag           Indicates the email being sent (newreg|newmod|appmod|repass|getuser).
- * @param  array  $wpmem_fields  Array of the WP-Members fields (defaults to null).
- * @param  array  $fields        Array of the registration data (defaults to null).
+ * @param  array  $wpmem_fields  Array of the WP-Members fields (defaults to false).
+ * @param  array  $fields        Array of the registration data (defaults to false).
  * @param  array  $custom {
- *     Array of custom email information (defaults to null).
+ *     Array of custom email information (defaults to false).
  *
  *     @type string $subj The email subject.
  *     @type string $body The email message body.
@@ -102,9 +102,9 @@ function wpmem_email_to_user( $args, $password = null, $tag = null, $wpmem_field
 		$user_id      = $args['user_id'];
 		$tag          = $args['tag'];
 		$password     = ( isset( $args['password']     ) ) ? $args['password']     : '';
-		$wpmem_fields = ( isset( $args['wpmem_fields'] ) ) ? $args['wpmem_fields'] : '';
-		$field_data   = ( isset( $args['field_data']   ) ) ? $args['field_data']   : '';
-		$custom       = ( isset( $args['custom']       ) ) ? $args['custom']       : '';
+		$wpmem_fields = ( isset( $args['wpmem_fields'] ) ) ? $args['wpmem_fields'] : false;
+		$field_data   = ( isset( $args['field_data']   ) ) ? $args['field_data']   : false;
+		$custom       = ( isset( $args['custom']       ) ) ? $args['custom']       : false;
 	} else {
 		$user_id = $args;
 	}
@@ -136,3 +136,15 @@ function wpmem_notify_admin( $args, $wpmem_fields = null, $field_data = null ) {
 	$wpmem->email->notify_admin( $user_id, $wpmem_fields, $field_data );
 }
 endif;
+
+/**
+ * Checks for default email vals.
+ * 
+ * @since 3.5.0
+ */
+function wpmem_get_email_settings( $tag ) {
+	global $wpmem;
+	// Are there settings for this email?
+	$saved_settings = get_option( $tag );
+	return ( $saved_settings ) ? $saved_settings : $wpmem->email->get_default_email( $tag );
+}

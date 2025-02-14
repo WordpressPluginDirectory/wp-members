@@ -6,18 +6,18 @@
  * 
  * This file is part of the WP-Members plugin by Chad Butler
  * You can find out more about this plugin at https://rocketgeek.com
- * Copyright (c) 2006-2023  Chad Butler
+ * Copyright (c) 2006-2025  Chad Butler
  * WP-Members(tm) is a trademark of butlerblog.com
  *
  * @package WP-Members
  * @author Chad Butler
- * @copyright 2006-2023
+ * @copyright 2006-2025
  */
 ?>
 
 <html>
 <head>
-	<title><?php _e( 'Terms of Service', 'wp-members' ); ?> | <?php bloginfo( 'name' ); ?></title>
+	<title><?php wpmem_get_text( 'tos_title', true ); ?> | <?php bloginfo( 'name' ); ?></title>
 </head>
 
 <body>
@@ -29,9 +29,9 @@ $wpmem_tos = get_option( 'wpmembers_tos' );
 echo stripslashes( $wpmem_tos );
 
 print ( '<br /><br />' );
-printf( __('%sclose%s', 'wp-members'), '[<a href="javascript:self.close()">', '</a>]' );
+printf( wpmem_get_text( 'tos_close' ), '[<a href="javascript:self.close()">', '</a>]' );
 print ( '&nbsp;&nbsp;' );
-printf( __('%sprint%s', 'wp-members'), '[<a href="javascript:window.print()">', '</a>]' );
+printf( wpmem_get_text( 'tos_print' ), '[<a href="javascript:window.print()">', '</a>]' );
 
 ?>
 

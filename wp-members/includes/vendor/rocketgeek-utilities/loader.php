@@ -9,15 +9,15 @@
  * useful for your project(s). Attribution is appreciated ;-)
  *
  * @package    RocketGeek_Utilities
- * @version    1.0.2
+ * @version    1.0.6
  *
  * @link       https://github.com/rocketgeek/rocketgeek-utilities/
  * @author     Chad Butler <https://butlerblog.com>
  * @author     RocketGeek <https://rocketgeek.com>
- * @copyright  Copyright (c) 2023 Chad Butler
+ * @copyright  Copyright (c) 2024 Chad Butler
  * @license    Apache-2.0
  *
- * Copyright [2023] Chad Butler, RocketGeek
+ * Copyright [2024] Chad Butler, RocketGeek
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -30,6 +30,8 @@
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
+ * 
+ * 1.0.6 Adds rktgk_get_sanitized()
  */
 
 require_once 'includes/utilities.php';
@@ -38,6 +40,9 @@ require_once 'includes/dates.php';
 require_once 'includes/forms.php';
 require_once 'includes/strings.php';
 require_once 'includes/db.php';
+if ( rktgk_is_woo_active() ) {
+    require_once 'includes/woocommerce.php';
+}
 
 // @todo Change to load only if debug is set
-require_once( 'includes/debug.php' );
+require_once 'includes/debug.php';

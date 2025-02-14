@@ -33,11 +33,19 @@ class WP_Members_Pwd_Reset {
 	 */
 	function __construct() {
 		
+		// Password reset key is generated in add_reset_to_email() using WP's get_password_reset_key()
+		add_action( 'init',               array( $this, 'init' ) );
+		add_filter( 'wpmem_email_filter', array( $this, 'add_reset_key_to_email' ), 10, 3 );
+		add_action( 'template_redirect',  array( $this, 'handle_reset'           ), 20  );
+		//add_filter( 'the_content',        array( $this, 'display_content'        ), 100 );
+	}
+
+	function init() {
 		$defaults = array(
-			'invalid_key'     => __( "Invalid key." ),
-			'invalid_user'    => __( "Invalid user.", 'wp-members' ),
-			'key_is_expired'  => __( "Sorry, the password reset key is expired.", 'wp-members' ),
-			'request_new_key' => __( "Request a new reset key.", 'wp-members' ),
+			'invalid_key'     => wpmem_get_text( 'pwd_reset_invalid_key' ), // "Invalid key."
+			'invalid_user'    => wpmem_get_text( 'pwd_reset_invalid_user' ), // "Invalid user."
+			'key_is_expired'  => wpmem_get_text( 'pwd_reset_key_is_expired' ), // "Sorry, the password reset key is expired."
+			'request_new_key' => wpmem_get_text( 'pwd_reset_request_new_key' ), // "Request a new reset key."
 		);
 		
 		/**
@@ -46,7 +54,10 @@ class WP_Members_Pwd_Reset {
 		 * @since 3.3.8
 		 *
 		 * @param array $defaults {
-		 *     
+		 *     @type string $invalid_key
+		 *     @type string $invalid_user
+		 *     @type string $key_is_expired
+		 *     @type string $request_new_key
 		 * }
 		 */
 		$defaults = apply_filters( 'wpmem_pwd_reset_default_dialogs', $defaults );
@@ -54,10 +65,6 @@ class WP_Members_Pwd_Reset {
 		foreach ( $defaults as $key => $value ) {
 			$this->{$key} = $value;
 		}
-		
-		add_filter( 'wpmem_email_filter', array( $this, 'add_reset_key_to_email' ), 10, 3 );
-		add_action( 'template_redirect',  array( $this, 'handle_reset'           ), 20  );
-		//add_filter( 'the_content',        array( $this, 'display_content'        ), 100 );
 	}
 
 	function handle_reset() {
@@ -172,36 +179,47 @@ class WP_Members_Pwd_Reset {
 			
 			// Get the stored key.
 			$key = get_password_reset_key( $user );
-			$query_args = array(
-				'a'     => $this->action,
-				'key'   => $key,
-				'login' => $user->user_login,
-			);
-			
-			// urlencode, primarily for user_login with a space.
-			$query_args = array_map( 'rawurlencode', $query_args );
-			
-			// Generate reset link.
-			$link = add_query_arg( $query_args, trailingslashit( wpmem_profile_url() ) );
 
-			/**
-			 * Filter the password reset URL in the email.
-			 * 
-			 * @since 3.4.5
-			 * 
-			 * @param  string  $link
-			 * @param  array   $query_args
-			 * @param  object  $user
-			 */
-			$link = apply_filters( 'wpmem_pwd_reset_email_link', $link, $query_args, $user );
-			
+			if ( is_wp_error( $key ) ) {
+				$error_string = $key->get_error_message();
+				$link = "The following error occured generating the password reset key:
+					" . $error_string;
+			} else {
+
+				$query_args = array(
+					'a'     => trim( $this->action ),
+					'key'   => trim( $key ),
+					'login' => trim( $user->user_login ),
+				);
+				
+				// urlencode, primarily for user_login with a space.
+				$query_args = array_map( 'rawurlencode', $query_args );
+				
+				// Generate reset link.
+				$link = ( ! get_option( 'permalink_structure' ) ) ? wpmem_profile_url() : trailingslashit( wpmem_profile_url() );
+				$link = add_query_arg( $query_args, $link );
+					
+				/**
+				 * Filter the password reset URL in the email.
+				 * 
+				 * @since 3.4.5
+				 * 
+				 * @param  string  $link
+				 * @param  array   $query_args
+				 * @param  object  $user
+				 */
+				$link = apply_filters( 'wpmem_pwd_reset_email_link', $link, $query_args, $user );
+			}
+
+			$sanitized_link = esc_url_raw( $link );
+
 			// Does email body have the [reset_link] shortcode?
 			if ( strpos( $arr['body'], '[reset_link]' ) ) {
-				$arr['body'] = str_replace( '[reset_link]', esc_url_raw( $link ), $arr['body'] );
+				$arr['body'] = str_replace( '[reset_link]', $sanitized_link, $arr['body'] );
 			} else {
 				// Add text and link to the email body.
 				$arr['body'] = $arr['body'] . "\r\n"
-					. esc_url_raw( $link );
+					. $sanitized_link;
 			}
 		}
 		return $arr;
@@ -222,7 +240,7 @@ class WP_Members_Pwd_Reset {
 	
 	function error_msg( $code, $message = false ) {
 		if ( $message ) {
-			$error = wpmem_get_display_message( $code, $message . '<br /><a href="' . esc_url( wpmem_profile_url( 'pwdreset' ) ) . '">' . esc_html( $this->request_new_key ) . '</a>' );
+			$error = wpmem_get_display_message( $code, $message . '<br /><a href="' . esc_url( wpmem_profile_url( 'pwdreset' ) ) . '">' . $this->request_new_key . '</a>' );
 		} else {
 			$error = wpmem_get_display_message( $code );
 		}

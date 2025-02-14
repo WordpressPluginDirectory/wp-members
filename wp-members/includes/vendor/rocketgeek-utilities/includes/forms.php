@@ -7,15 +7,15 @@
  *
  * @package    RocketGeek_Utilities
  * @subpackage RocketGeek_Utilities_Forms
- * @version    1.0.0
+ * @version    1.1.0
  *
  * @link       https://github.com/rocketgeek/rocketgeek-utilities/
  * @author     Chad Butler <https://butlerblog.com>
  * @author     RocketGeek <https://rocketgeek.com>
- * @copyright  Copyright (c) 2023 Chad Butler
+ * @copyright  Copyright (c) 2024 Chad Butler
  * @license    Apache-2.0
  *
- * Copyright [2023] Chad Butler, RocketGeek
+ * Copyright [2024] Chad Butler, RocketGeek
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -56,6 +56,24 @@ function rktgk_get( $tag, $default = '', $type = 'post' ) {
 			return ( isset( $_POST[ $tag ] ) ) ? $_POST[ $tag ] : $default;
 			break;
 	}
+}
+endif;
+
+if ( ! function_exists( 'rktgk_get_sanitized' ) ):
+/**
+ * Utility function to check if $_POST, $_GET, or $_REQUEST is valid, and sanitizes the result.
+ *
+ * @since 1.1.0
+ *
+ * @param  string $tag          Form field or query string param.
+ * @param  string $default      Default value (optional, default: null).
+ * @param  string $request_type Request type (post|get|request) (optional, default:post).
+ * @param  string $field_type   Type of sanitization (using rktgk_sanitize_field()) (optional, default:text).
+ * @return mixed  The sanitized result (string|array|integer|boolean).
+ */
+function rktgk_get_sanitized( $tag, $default = '', $request_type = 'post', $field_type = 'text' ) {
+	$pre_sanitized_tag = rktgk_get( $tag, $default, $request_type );
+	return rktgk_sanitize_field( $pre_sanitized_tag, $field_type );
 }
 endif;
 

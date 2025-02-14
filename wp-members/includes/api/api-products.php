@@ -4,13 +4,13 @@
  * 
  * This file is part of the WP-Members plugin by Chad Butler
  * You can find out more about this plugin at https://rocketgeek.com
- * Copyright (c) 2006-2023  Chad Butler
+ * Copyright (c) 2006-2025  Chad Butler
  * WP-Members(tm) is a trademark of butlerblog.com
  *
  * @package WP-Members
  * @subpackage WP-Members API Functions
  * @author Chad Butler 
- * @copyright 2006-2023
+ * @copyright 2006-2025
  */
 
 /**
@@ -18,6 +18,7 @@
  *
  * @since Unknown
  * @since 3.4.5 Alias of wpmem_get_membership_post_list().
+ * @deprecated 3.5.0 Use wpmem_get_membership_post_list() instead.
  *
  * @global  stdClass  $wpmem
  * @param   string    $product_key
@@ -46,6 +47,7 @@ function wpmem_get_membership_post_list( $membership_key ) {
  *
  * @since 3.3.7
  * @since 3.4.5 Alias of wpmem_get_post_memberships().
+ * @deprecated 3.5.0 Use wpmem_get_post_memberships() instead.
  *
  * @global  stdClass  $wpmem
  * @param   integer   $post_id
@@ -88,6 +90,7 @@ function wpmem_get_access_message( $post_products ) {
  * Alias of wpmem_get_memberships().
  * 
  * @since Unknown
+ * @deprecated 3.5.0 Use wpmem_get_memberships() instead.
  * 
  * @return array
  */
@@ -104,7 +107,7 @@ function wpmem_get_products() {
  */
 function wpmem_get_memberships() {
 	global $wpmem;
-	return ( ! empty( $wpmem->membership->products ) ) ? $wpmem->membership->products : false;
+	return ( ! empty( $wpmem->membership->memberships ) ) ? $wpmem->membership->memberships : array();
 }
 
 /**
@@ -116,7 +119,7 @@ function wpmem_get_memberships() {
  */
 function wpmem_get_memberships_ids() {
 	global $wpmem;
-	return array_flip( $wpmem->membership->product_by_id );
+	return array_flip( $wpmem->membership->membership_by_id );
 }
 
 /**
@@ -138,11 +141,11 @@ function wpmem_get_membership_id( $membership_slug ) {
  * @since 3.4.5
  * 
  * @param  string  $membership_slug
- * @return string  Value of $wpmem->membership->products[ $membership_slug ]['title'] if set, otherwise, $membership_slug.
+ * @return string  Value of $wpmem->membership->memberships[ $membership_slug ]['title'] if set, otherwise, $membership_slug.
  */
 function wpmem_get_membership_name( $membership_slug ) {
 	global $wpmem;
-	return ( isset( $wpmem->membership->products[ $membership_slug ]['title'] ) ) ? $wpmem->membership->products[ $membership_slug ]['title'] : $membership_slug;
+	return ( isset( $wpmem->membership->memberships[ $membership_slug ]['title'] ) ) ? $wpmem->membership->memberships[ $membership_slug ]['title'] : $membership_slug;
 }
 
 /**
@@ -155,6 +158,18 @@ function wpmem_get_membership_name( $membership_slug ) {
  */
 function wpmem_get_membership_slug( $membership_id ) {
 	return get_post_field( 'post_name', $membership_id );
+}
+
+/**
+ * Get the role required by a membership (if any).
+ * 
+ * @since 3.5.0
+ * 
+ * @param  string  $slug  The membership slug (meta key).
+ */
+function wpmem_get_membership_role( $membership_slug ) {
+	global $wpmem;
+	return ( isset( $wpmem->membership->memberships[ $membership_slug ]['role'] ) ) ? $wpmem->membership->memberships[ $membership_slug ]['role'] : '';
 }
 
 /**
@@ -378,4 +393,21 @@ function wpmem_create_membership( $args ) {
 
 	// wp_insert_post() returns post ID on success, WP_Error on fail.
 	return $post_id;
+}
+
+/**
+ * Sets the expiration date for a membership
+ * 
+ * @since 3.5.0
+ * 
+ * @param  string  $membership
+ * @param  int     $user_id
+ * @param  mixed   $set_date
+ * @param  mixed   $prev_value
+ * @param  boolean $renew
+ * @return mixed   $new_value
+ */
+function wpmem_generate_membership_expiration_date( $membership, $user_id, $set_date = false, $prev_value = false, $renew = false ) {
+	global $wpmem;
+	return $wpmem->membership->set_product_expiration( $membership, $user_id, $set_date, $prev_value, $renew );
 }

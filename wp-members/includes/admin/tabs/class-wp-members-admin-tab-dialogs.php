@@ -6,12 +6,12 @@
  * 
  * This file is part of the WP-Members plugin by Chad Butler
  * You can find out more about this plugin at https://rocketgeek.com
- * Copyright (c) 2006-2023  Chad Butler
+ * Copyright (c) 2006-2025  Chad Butler
  * WP-Members(tm) is a trademark of butlerblog.com
  *
  * @package WP-Members
  * @author Chad Butler
- * @copyright 2006-2023
+ * @copyright 2006-2025
  */
 
 // Exit if accessed directly.
@@ -54,7 +54,7 @@ class WP_Members_Admin_Tab_Dialogs {
 			<div class="inner-sidebar">
 				<?php wpmem_a_meta_box(); ?>
 				<div class="postbox">
-					<h3><span><?php _e( 'Need help?', 'wp-members' ); ?></span></h3>
+					<h3><span><?php esc_html_e( 'Need help?', 'wp-members' ); ?></span></h3>
 					<div class="inside">
 						<strong><i>See the <a href="https://rocketgeek.com/plugins/wp-members/docs/plugin-settings/dialogs/" target="_blank">Users Guide on dialogs</a>.</i></strong>
 					</div>
@@ -64,9 +64,9 @@ class WP_Members_Admin_Tab_Dialogs {
 			<div id="post-body">
 				<div id="post-body-content">
 					<div class="postbox">
-						<h3><span>WP-Members <?php _e( 'Dialogs and Error Messages', 'wp-members' ); ?></span></h3>
+						<h3><span>WP-Members <?php esc_html_e( 'Dialogs and Error Messages', 'wp-members' ); ?></span></h3>
 						<div class="inside">
-							<p><?php printf( __( 'You can customize the text for dialogs and error messages. Simple HTML is allowed %s etc.', 'wp-members' ), '- &lt;p&gt;, &lt;b&gt;, &lt;i&gt;,' ); ?></p>
+							<p><?php printf( esc_html__( 'You can customize the text for dialogs and error messages. Simple HTML is allowed %s etc.', 'wp-members' ), '- &lt;p&gt;, &lt;b&gt;, &lt;i&gt;,' ); ?></p>
 							<form name="updatedialogform" id="updatedialogform" method="post" action="<?php echo esc_url( wpmem_admin_form_post_url() ); ?>"> 
 							<?php wp_nonce_field( 'wpmem-update-dialogs' ); ?>
 								<table class="form-table">
@@ -77,14 +77,14 @@ class WP_Members_Admin_Tab_Dialogs {
 								} ?>
 								<?php $wpmem_tos = stripslashes( get_option( 'wpmembers_tos' ) ); ?>
 									<tr valign="top"> 
-										<th scope="row"><?php _e( 'Terms of Service (TOS)', 'wp-members' ); ?></th> 
+										<th scope="row"><?php esc_html_e( 'Terms of Service (TOS)', 'wp-members' ); ?></th> 
 										<td><textarea name="dialogs_tos" rows="3" cols="50" id="" class="large-text code"><?php echo esc_textarea( $wpmem_tos ); ?></textarea></td> 
 									</tr>
 									<tr valign="top">
 										<th scope="row">&nbsp;</th>
 										<td>
 											<input type="hidden" name="wpmem_admin_a" value="update_dialogs" />
-											<?php submit_button( __( 'Update Dialogs', 'wp-members' ) ); ?>
+											<?php submit_button( esc_html__( 'Update Dialogs', 'wp-members' ) ); ?>
 										</td> 
 									</tr>
 								</table>
@@ -119,9 +119,9 @@ class WP_Members_Admin_Tab_Dialogs {
 		}
 
 		// Terms of Service.
-		update_option( 'wpmembers_tos', wp_kses( $_POST['dialogs_tos'], 'post' ) );
+		update_option( 'wpmembers_tos', wp_kses( $_POST['dialogs_tos'], 'post' ), false );
 
-		return __( 'WP-Members dialogs were updated', 'wp-members' );
+		return esc_html__( 'WP-Members dialogs were updated', 'wp-members' );
 	}
 
 } // End of file.

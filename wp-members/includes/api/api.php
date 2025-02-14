@@ -4,13 +4,13 @@
  * 
  * This file is part of the WP-Members plugin by Chad Butler
  * You can find out more about this plugin at https://rocketgeek.com
- * Copyright (c) 2006-2023  Chad Butler
+ * Copyright (c) 2006-2025  Chad Butler
  * WP-Members(tm) is a trademark of butlerblog.com
  *
  * @package WP-Members
  * @subpackage WP-Members API Functions
  * @author Chad Butler 
- * @copyright 2006-2023
+ * @copyright 2006-2025
  */
 
 // Exit if accessed directly.
@@ -33,7 +33,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 function wpmem_redirect_to_login( $redirect_to = false ) {
 	if ( ! is_user_logged_in() ) {
 		$redirect_to = ( $redirect_to ) ? $redirect_to : wpmem_current_url();
-		wp_safe_redirect( wpmem_login_url( $redirect_to ) );
+		wp_safe_redirect( wpmem_login_url( esc_url_raw( $redirect_to ) ) );
 		exit();
 	}
 	return;
@@ -107,7 +107,7 @@ function wpmem_get_login_link( $args = array() ) {
 			'class' => 'wpmem-login-link',
 			'href'  => wpmem_login_url( wpmem_current_url() ),
 		),
-		'content' => __( 'Log In' )
+		'content' => esc_html__( 'Log In' )
 	);
 	$args = rktgk_wp_parse_args( $args, $defaults );
 	return rktgk_build_html_tag( $args );
@@ -149,7 +149,7 @@ function wpmem_get_reg_link( $args = array() ) {
 			'class' => 'wpmem-reg-link',
 			'href'  => add_query_arg( 'redirect_to', wpmem_current_url(), wpmem_register_url() ),
 		),
-		'content' => __( 'Register' )
+		'content' => esc_html__( 'Register' )
 	);
 	$args = rktgk_wp_parse_args( $args, $defaults );
 	return rktgk_build_html_tag( $args );
@@ -179,12 +179,20 @@ function wpmem_login_url( $redirect_to = false ) {
 	global $wpmem;
 	// If no login page is set, get WP login url.
 	$login_url = ( isset( $wpmem->user_pages['login'] ) ) ? $wpmem->user_pages['login'] : wp_login_url();
+	/**
+	 * Filter the login url.
+	 * 
+	 * @since 3.5.0
+	 * 
+	 * @param string $login_url
+	 */
+	$login_url = apply_filters( 'wpmem_login_url', $login_url );
 	if ( $redirect_to ) {
 		$url = add_query_arg( 'redirect_to', urlencode( $redirect_to ), $login_url );
 	} else {
 		$url = $login_url;
 	}
-	return $url;
+	return esc_url_raw( $url );
 }
 
 /**
@@ -197,7 +205,15 @@ function wpmem_login_url( $redirect_to = false ) {
  */
 function wpmem_register_url() {
 	global $wpmem;
-	return $wpmem->user_pages['register'];
+	$reg_url = $wpmem->user_pages['register'];
+	/**
+	 * Filter the register url.
+	 * 
+	 * @since 3.5.0
+	 * 
+	 * @param string $reg_url
+	 */
+	return esc_url_raw( apply_filters( 'wpmem_register_url', $reg_url ) );
 }
 
 /**
@@ -212,7 +228,7 @@ function wpmem_register_url() {
  */
 function wpmem_profile_url( $a = false ) {
 	global $wpmem;
-	return ( $a ) ? add_query_arg( 'a', $a, trailingslashit( $wpmem->user_pages['profile'] ) ) : $wpmem->user_pages['profile'];
+	return ( $a ) ? add_query_arg( 'a', esc_attr( $a ), trailingslashit( $wpmem->user_pages['profile'] ) ) : $wpmem->user_pages['profile'];
 }
 
 /**
@@ -231,10 +247,21 @@ function wpmem_pwd_reset_url() {
  * 
  * @since 3.4.5
  * 
- * @return string The pforgot username url.
+ * @return string The forgot username url.
  */
 function wpmem_forgot_username_url() {
 	return wpmem_profile_url( 'getusername' );
+}
+
+/**
+ * Alias of wpmem_profile_url() to return the forgot username URL.
+ * 
+ * @since 3.5.0
+ * 
+ * @return string The resend confirmation url.
+ */
+function wpmem_reconfirm_url() {
+	return wpmem_profile_url( 'reconfirm' );
 }
 
 /**
@@ -276,17 +303,38 @@ function wpmem_current_url( $slash = true, $getq = true ) {
 	$url = home_url( add_query_arg( array(), $wp->request ) );
 	$url = ( $slash ) ? trailingslashit( $url ) : $url;
 	$url = ( $getq && count( $_GET ) > 0 ) ? $url . '?' . $_SERVER['QUERY_STRING'] : $url;
-	return $url;
+	return esc_url_raw( $url );
 }
 
+/**
+ * Checks if the current page is the login page.
+ * 
+ * @since 3.5.0
+ * 
+ * @return boolean
+ */
 function wpmem_is_login() {
 	return ( wpmem_login_url() == wpmem_current_url( true, false ) ) ? true : false;
 }
 
+/**
+ * Checks if the current page is the register page.
+ * 
+ * @since 3.5.0
+ * 
+ * @return boolean
+ */
 function wpmem_is_register() {
 	return ( wpmem_register_url() == wpmem_current_url( true, false ) ) ? true : false;
 }
 
+/**
+ * Checks if the current page is the user profile page.
+ * 
+ * @since 3.5.0
+ * 
+ * @return boolean
+ */
 function wpmem_is_profile() {
 	return ( wpmem_profile_url() == wpmem_current_url( true, false ) ) ? true : false;
 }
@@ -383,6 +431,21 @@ function wpmem_get( $tag, $default = '', $type = 'post' ) {
 }
 
 /**
+ * Utility function to check if $_POST, $_GET, or $_REQUEST is valid, and sanitizes the result.
+ *
+ * @since 3.5.0
+ *
+ * @param  string $tag          Form field or query string param.
+ * @param  string $default      Default value (optional, default: null).
+ * @param  string $request_type Request type (post|get|request) (optional, default:post).
+ * @param  string $field_type   Type of sanitization (using rktgk_sanitize_field()) (optional, default:text).
+ * @return mixed  The sanitized result (string|array|integer|boolean).
+ */
+function wpmem_get_sanitized( $tag, $default = '', $request_type = 'post', $field_type = 'text' ) {
+	return rktgk_get_sanitized( $tag, $default, $request_type, $field_type );
+}
+
+/**
  * Compares wpmem_reg_page value with the register page URL. 
  *
  * @since 3.1.4
@@ -397,7 +460,7 @@ function wpmem_is_reg_page( $check = false ) {
 	} else {
 		if ( ! is_int( $check ) ) {
 			global $wpdb;
-			$sql   = "SELECT ID FROM $wpdb->posts WHERE post_name = '$check' AND post_status = 'publish' LIMIT 1";	
+			$sql   = 'SELECT ID FROM $wpdb->posts WHERE post_name = "' . esc_sql( $check ) . '" AND post_status = "publish" LIMIT 1';	
 			$arr   = $wpdb->get_results( $sql, ARRAY_A  ); 
 			$check = $arr[0]['ID'];
 		}
@@ -517,7 +580,7 @@ function wpmem_display_message( $tag, $custom = false ) {
  */
 function wpmem_use_custom_dialog( $defaults, $tag, $dialogs ) {
 	$msg_string = ( is_array( $dialogs[ $tag ] ) ) ? $dialogs[ $tag ]['value'] : $dialogs[ $tag ];
-	$defaults['msg'] = __( $msg_string, 'wp-members' );
+	$defaults['msg'] = esc_html__( $msg_string, 'wp-members' );
 	return $defaults;
 }
 
@@ -585,6 +648,7 @@ function wpmem_is_rest() {
  * Gets registration type.
  *
  * @since 3.3.5
+ * @since 3.5.1 Checks is_reg_type().
  *
  * @global  stdClass  $wpmem
  * @param   string    $type (wpmem|native|add_new|woo|woo_checkout)
@@ -592,7 +656,7 @@ function wpmem_is_rest() {
  */
 function wpmem_is_reg_type( $type ) {
 	global $wpmem;
-	return $wpmem->user->reg_type[ 'is_' . $type ];
+	return $wpmem->user->is_reg_type( $type );
 }
 
 /**
@@ -668,5 +732,48 @@ function wpmem_woo_is_purchasable( $is_purchasable, $product ) {
 	}
 
 	return true;
+}
+
+/**
+ * Display an icon or text indicating the restriction value of a post for logged out users.
+ * 
+ * @note Make sure dashicons are loaded if $icon is true.
+ * 
+ * @since 3.5.0
+ * 
+ * @param  int   $post_id
+ * @param  bool  $icon
+ * @param  bool  $echo
+ * @return bool
+ */
+function wpmem_show_post_restriction( $post_id, $icon = false, $echo = false ) {
+
+	$defaults = array( 
+		'open_icon' => '<span class="dashicons dashicons-lock"></span>',
+		'open_text' => '[ members only ]',
+		'restricted_icon' => '<span class="dashicons dashicons-unlock"></span>',
+		'restricted_text' => '[ free ]',
+	);
+	$filtered = apply_filters( 'wpmem_show_post_restriction_args', $defaults, $post_id );
+	$args = wp_parse_args( $filtered, $defaults );
+
+    if ( ! is_user_logged_in() ) {
+        
+        if ( wpmem_is_blocked( $post_id ) ) {
+
+            $result = ( $icon ) ?  $args['restricted_icon'] : $args['restricted_text'];
+
+        } else {
+
+            $result = ( $icon ) ? $args['open_icon'] : $args['open_text'];
+
+        }
+
+        if ( $echo ) {
+            echo $result;
+        } else {
+            return $result;
+        }
+    }
 }
 // End of file.

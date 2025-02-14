@@ -53,6 +53,8 @@ class WP_Members_Products {
 	 * @var object
 	 */
 	public $admin;
+
+	public $woo_connector;
 	
 	/**
 	 * Product details.
@@ -77,7 +79,8 @@ class WP_Members_Products {
 	 *     }
 	 * }
 	 */
-	public $products = array();
+	public $products = array(); // @deprecated 3.5.0.
+	public $memberships = array();
 
 	/**
 	 * Product meta keyed by ID.
@@ -90,9 +93,8 @@ class WP_Members_Products {
 	 *     @type string $ID The membership product slug.
 	 * }
 	 */
-	public $product_by_id = array();
-
-	public $woo_connector;
+	public $product_by_id = array(); // @deprecated 3.5.0.
+	public $membership_by_id = array();
 	
 	/**
 	 * Class constructor.
@@ -118,31 +120,68 @@ class WP_Members_Products {
 	 * Loads product settings.
 	 *
 	 * @since 3.2.0
+	 * @todo Name change to load_memberships() is coming.
 	 *
 	 * @global object $wpdb The WPDB object class.
 	 */
-	function load_products() {
+	private function load_products() {
+
+		$memberships = get_option( 'wpmem_memberships' );
+
+		if ( ! $memberships ) {
+			$memberships = $this->update_memberhips();
+		}
+
+		// Preferred containers.
+		$this->memberships      = $memberships['products'];
+		$this->membership_by_id = $memberships['by_id'];
+		
+		// Legacy containers.
+		$this->products      = $this->memberships;
+		$this->product_by_id = $this->membership_by_id;
+	}
+
+	/**
+	 * Saves membership settings in an option so we don't have to
+	 * run this query all the time. Option is updated anytime 
+	 * memberships are updated or saved.
+	 * 
+	 * @since 3.5.2
+	 */
+	public function update_memberhips() {
 		global $wpdb;
-		$sql = "SELECT ID, post_title, post_name FROM " 
-			. $wpdb->prefix 
-			. "posts WHERE post_type = 'wpmem_product' AND post_status = 'publish';";
+		$sql = "SELECT ID, post_title, post_name 
+			FROM " . $wpdb->prefix . "posts 
+			WHERE post_type = 'wpmem_product' 
+			AND post_status = 'publish';";
 		$result = $wpdb->get_results( $sql );
-		foreach ( $result as $plan ) {
-			$this->product_by_id[ $plan->ID ] = $plan->post_name;
-			$this->products[ $plan->post_name ]['title'] = $plan->post_title;			
-			$post_meta = get_post_meta( $plan->ID );
-			foreach ( $post_meta as $key => $meta ) {
-				if ( false !== strpos( $key, 'wpmem_product' ) ) {
-					if ( 'wpmem_product_expires' == $key ) {
-						$meta[0] = unserialize( $meta[0] );
+
+		if ( $result ) {
+			foreach ( $result as $plan ) {
+				$memberships['by_id'][ $plan->ID ] = $plan->post_name;
+				$memberships['products'][ $plan->post_name ]['title'] = $plan->post_title;			
+				$post_meta = get_post_meta( $plan->ID );
+				foreach ( $post_meta as $key => $meta ) {
+					if ( false !== strpos( $key, 'wpmem_product' ) ) {
+						if ( 'wpmem_product_expires' == $key ) {
+							$meta[0] = unserialize( $meta[0] );
+						}
+						if ( 'wpmem_product_fixed_period' == $key ) {
+							$meta[0] = $this->explode_fixed_period( $meta[0] );
+						}
+						$memberships['products'][ $plan->post_name ][ str_replace( 'wpmem_product_', '', $key ) ] = $meta[0];
 					}
-					if ( 'wpmem_product_fixed_period' == $key ) {
-						$meta[0] = $this->explode_fixed_period( $meta[0] );
-					}
-					$this->products[ $plan->post_name ][ str_replace( 'wpmem_product_', '', $key ) ] = $meta[0];
 				}
 			}
+
+			update_option( 'wpmem_memberships', $memberships, true );
+
+		} else {
+			// Prevent a blowup if there are no memberships.
+			$memberships = array( 'products'=>array(), 'by_id'=>array() );
 		}
+
+		return $memberships;
 	}
 	
 	/**
@@ -158,17 +197,20 @@ class WP_Members_Products {
 	 * }
 	 */
 	function get_post_products( $post_id ) {
-		$products = get_post_meta( $post_id, $this->post_meta, true );
+		$memberships = get_post_meta( $post_id, $this->post_meta, true );
 		/**
 		 * Filter product access by post ID.
 		 *
 		 * @since 3.3.5
+		 * @since 3.5.0 Use wpmem_post_memberships instead.
+		 * @todo Mark deprecated filter hook.
 		 *
-		 * @param array $post_products
+		 * @param array $post_memberships
 		 * @param int   $post_id
 		 */
-		$products = apply_filters( 'wpmem_post_products', $products, $post_id );
-		return $products;
+		$memberships = apply_filters( 'wpmem_post_products', $memberships, $post_id );
+		$memberships = apply_filters( 'wpmem_post_memberships', $memberships, $post_id );
+		return $memberships;
 	}
 
 	/**
@@ -247,6 +289,7 @@ class WP_Members_Products {
 				 * @since 3.3.3
 				 * @since 3.3.4 Added $post_products
 				 * @since 3.4.4 Added $excerpt
+				 * @since 3.5.0 Use wpmem_membership_restricted_args instead.
 				 *
 				 * @param array  $product_restricted {
 				 *     $type string $wrapper_before
@@ -265,6 +308,7 @@ class WP_Members_Products {
 					'message'        => $message,
 					'wrapper_after'  => '</div>',
 				), $post_products );
+				$product_restricted = apply_filters( 'wpmem_membership_restricted_args', $product_restricted );
 				
 				$content = $product_restricted['excerpt'] . $product_restricted['wrapper_before'] . $product_restricted['message'] . $product_restricted['wrapper_after'];
 			
@@ -300,6 +344,7 @@ class WP_Members_Products {
 		 * Filter the product restricted message.
 		 *
 		 * @since 3.2.3
+		 * @since 3.5.0 User wpmem_membership_restricted_msg instead.
 		 *
 		 * @param string                The message.
 		 * @param array  $post_products {
@@ -309,6 +354,7 @@ class WP_Members_Products {
 		 * }
 		 */
 		$message = apply_filters( 'wpmem_product_restricted_msg', $message, $post_products );
+		$message = apply_filters( 'wpmem_membership_restricted_msg', $message, $post_products );
 		return $message;
 	}
 	
@@ -331,7 +377,7 @@ class WP_Members_Products {
 			$product_message = false;
 			$count = count( $post_products );
 			foreach( $post_products as $post_product ) {
-				$membership_id = array_search( $post_product, $this->product_by_id );
+				$membership_id = array_search( $post_product, $this->membership_by_id );
 				$message = get_post_meta( $membership_id, 'wpmem_product_message', true );
 				if ( $message ) {
 					$product_message = ( isset( $product_message ) ) ? $product_message . wpautop( $message ) : wpautop( $message );
@@ -367,31 +413,31 @@ class WP_Members_Products {
 		 */
 		$args = apply_filters( 'wpmem_membership_cpt_args', $args );
 		
-		$singular = __( 'Membership', 'wp-members' );
-		$plural   = __( 'Memberships', 'wp-members' );
+		$singular = esc_html__( 'Membership', 'wp-members' );
+		$plural   = esc_html__( 'Memberships', 'wp-members' );
 
 		$labels = array(
 			'name'                  => $plural,
 			'singular_name'         => $singular,
-			'menu_name'             => __( 'Memberships', 'wp-members' ),
-			'all_items'             => sprintf( __( 'All %s', 'wp-members' ), $plural ),
-			'add_new_item'          => sprintf( __( 'Add New %s', 'wp-members' ), $singular ),
-			'add_new'               => __( 'Add New', 'wp-members' ),
-			'new_item'              => sprintf( __( 'New %s', 'wp-members' ), $singular ),
-			'edit_item'             => sprintf( __( 'Edit %s', 'wp-members' ), $singular ),
-			'update_item'           => sprintf( __( 'Update %s', 'wp-members' ), $singular ),
-			'view_item'             => sprintf( __( 'View %s', 'wp-members' ), $singular ),
-			'view_items'            => sprintf( __( 'View %s', 'wp-members' ), $plural ),
-			'search_items'          => sprintf( __( 'Search %s', 'wp-members' ), $plural ),
-			'not_found'             => __( 'Not found', 'wp-members' ),
-			'not_found_in_trash'    => __( 'Not found in Trash', 'wp-members' ),
-			'insert_into_item'      => __( 'Insert into item', 'wp-members' ),
-			'publish'               => sprintf( __( 'Save %s Details', 'wp-members' ), $singular ),
-			'attributes'            => __( 'Membership Attributes', 'wp-members' ),
+			'menu_name'             => esc_html__( 'Memberships', 'wp-members' ),
+			'all_items'             => sprintf( esc_html__( 'All %s', 'wp-members' ), $plural ),
+			'add_new_item'          => sprintf( esc_html__( 'Add New %s', 'wp-members' ), $singular ),
+			'add_new'               => esc_html__( 'Add New', 'wp-members' ),
+			'new_item'              => sprintf( esc_html__( 'New %s', 'wp-members' ), $singular ),
+			'edit_item'             => sprintf( esc_html__( 'Edit %s', 'wp-members' ), $singular ),
+			'update_item'           => sprintf( esc_html__( 'Update %s', 'wp-members' ), $singular ),
+			'view_item'             => sprintf( esc_html__( 'View %s', 'wp-members' ), $singular ),
+			'view_items'            => sprintf( esc_html__( 'View %s', 'wp-members' ), $plural ),
+			'search_items'          => sprintf( esc_html__( 'Search %s', 'wp-members' ), $plural ),
+			'not_found'             => esc_html__( 'Not found', 'wp-members' ),
+			'not_found_in_trash'    => esc_html__( 'Not found in Trash', 'wp-members' ),
+			'insert_into_item'      => esc_html__( 'Insert into item', 'wp-members' ),
+			'publish'               => sprintf( esc_html__( 'Save %s Details', 'wp-members' ), $singular ),
+			'attributes'            => esc_html__( 'Membership Attributes', 'wp-members' ),
 		);
 		$args = array(
-			'label'                 => __( 'Membership Product', 'wp-members' ),
-			'description'           => __( 'WP-Members Membership Products', 'wp-members' ),
+			'label'                 => esc_html__( 'Membership Product', 'wp-members' ),
+			'description'           => esc_html__( 'WP-Members Membership Products', 'wp-members' ),
 			'labels'                => $labels,
 			'supports'              => array( 'title', 'page-attributes' ),
 			'hierarchical'          => true,
@@ -468,21 +514,21 @@ class WP_Members_Products {
 	 * @param  string  $product
 	 * @param  int     $user_id
 	 * @param  mixed   $set_date
-	 * @param  mixed   $pre_value
+	 * @param  mixed   $prev_value
 	 * @param  boolean $renew
 	 * @return mixed   $new_value
 	 */
-	function set_product_expiration( $product, $user_id, $set_date, $prev_value, $renew ) {
+	function set_product_expiration( $product, $user_id, $set_date = false, $prev_value = false, $renew = false ) {
 		// If this is setting a specific date.
 		if ( $set_date ) {
 			$new_value = strtotime( $set_date );
 		} else {
 			// Either setting initial expiration based on set time period, or adding to the existing date (renewal/extending).
-			$raw_add = explode( "|", $this->products[ $product ]['expires'][0] );
+			$raw_add = explode( "|", $this->memberships[ $product ]['expires'][0] );
 			$add_period = ( 1 < $raw_add[0] ) ? $raw_add[0] . " " . $raw_add[1] . "s" : $raw_add[0] . " " . $raw_add[1];
 
 			if ( $prev_value ) {
-				if ( isset( $this->products[ $product ]['no_gap'] ) && 1 == $this->products[ $product ]['no_gap'] ) {
+				if ( isset( $this->memberships[ $product ]['no_gap'] ) && 1 == $this->memberships[ $product ]['no_gap'] ) {
 					// Add to the user's existing date (no gap).
 					$new_value = strtotime( $add_period, $prev_value );					
 				} else {
@@ -499,7 +545,7 @@ class WP_Members_Products {
 				// User doesn't have this membershp. Go ahead and add it.
 		
 				// If we are using fixed period expiration, calculate the expiration date
-				if ( isset( $this->products[ $product ] ) && isset( $this->products[ $product ]['fixed_period'] ) ) {
+				if ( isset( $this->memberships[ $product ] ) && isset( $this->memberships[ $product ]['fixed_period'] ) ) {
 					// Calculate the fixed period expiration.
 					$new_value = $this->calculate_fixed_period ( $product );
 				} else {
@@ -513,12 +559,14 @@ class WP_Members_Products {
 		 * Filter the expiration date.
 		 *
 		 * @since 3.3.2
+		 * @since 3.5.0 Use wpmem_user_membership_set_expiration instead
 		 *
 		 * @param int|boolean  $new_value  Unix timestamp of new expiration, true|false if not an expiry product.
 		 * @param int|boolean  $prev_value The user's current value (prior to updating).
 		 * @param boolean      $renew      Is this a renewal transaction?
 		 */
 		$new_value = apply_filters( 'wpmem_user_product_set_expiration', $new_value, $prev_value, $renew );
+		$new_value = apply_filters( 'wpmem_user_membership_set_expiration', $new_value, $prev_value, $renew );
 		
 		return $new_value;
 	}
@@ -533,7 +581,7 @@ class WP_Members_Products {
 	 */
 	function calculate_fixed_period( $product ) {
 		// Use fixed period expiration.
-		$end = $this->products[ $product ]['fixed_period']['end'];
+		$end = $this->memberships[ $product ]['fixed_period']['end'];
 
 		// Get the current year.
 		$current_year = date( 'Y' );
@@ -553,9 +601,9 @@ class WP_Members_Products {
 		} else {
 			// Date is not past.
 			// Are we using a grace period?
-			if ( isset( $this->products[ $product ]['fixed_period']['grace'] ) && $this->products[ $product ]['fixed_period']['grace']['num'] > 0 ) {
+			if ( isset( $this->memberships[ $product ]['fixed_period']['grace'] ) && $this->memberships[ $product ]['fixed_period']['grace']['num'] > 0 ) {
 				// Are we in the grace period?
-				$grace_period = "-" . $this->products[ $product ]['fixed_period']['grace']['num'] . " " . $this->products[ $product ]['fixed_period']['grace']['per'];
+				$grace_period = "-" . $this->memberships[ $product ]['fixed_period']['grace']['num'] . " " . $this->memberships[ $product ]['fixed_period']['grace']['per'];
 				$grace_date   = DateTime::createFromFormat( 'U', strtotime( $grace_period, strtotime( $cur_date->format( 'd-m-Y' ) ) ) );
 				if ( $grace_date < $now ) {
 					// We are in grace period, set expiration as next year.
@@ -614,13 +662,13 @@ class WP_Members_Products {
 		$pairs = array(
 			'title_before' => '<h2>',
 			'title_after'  => '</h2>',
-			'title'        => __( 'Memberships', 'wp-members' ),
+			'title'        => wpmem_get_text( 'membership_sc_title' ), // "Memberships"
 			'list_before'  => '<ul>',
 			'list_after'   => '</ul>',
 			'item_before'  => '<li>',
 			'item_after'   => '</li>',
 			'date_format'  => 'default',
-			'no_expire'    => __( 'Does not expire', 'wp-members' ),
+			'no_expire'    => wpmem_get_text( 'membership_sc_no_expire' ), // "Does not expire"
 		);
 
 		$args = shortcode_atts( $pairs, $atts, $tag );
@@ -665,16 +713,16 @@ class WP_Members_Products {
 			
 			if ( $ids ) {
 
-				$title = $args['title_before'] . wpmem_get_membership_name( $key ) . $args['title_after'];
+				$membership_title = $args['title_before'] . wpmem_get_membership_name( $key ) . $args['title_after'];
 				$post_list = $args['list_before'];
 				foreach ( $ids as $id ) {
-					$title = get_the_title( $id );
-					$link  = '<a href="' . get_permalink( $id ) . '">' . $title . '</a>';
+					$post_title = get_the_title( $id );
+					$link  = '<a href="' . get_permalink( $id ) . '">' . $post_title . '</a>';
 					$post_list .= $args['item_before'] . $link . $args['item_after'];
 				}
 				$post_list .= $args['list_after'];
 				
-				$content .= $title . $post_list;
+				$content .= $membership_title . $post_list;
 			}
 		}
 	

@@ -6,12 +6,12 @@
  * 
  * This file is part of the WP-Members plugin by Chad Butler
  * You can find out more about this plugin at https://rocketgeek.com
- * Copyright (c) 2006-2023  Chad Butler
+ * Copyright (c) 2006-2025  Chad Butler
  * WP-Members(tm) is a trademark of butlerblog.com
  *
  * @package WP-Members
  * @author Chad Butler
- * @copyright 2006-2023
+ * @copyright 2006-2025
  */
 
 // Exit if accessed directly.
@@ -54,24 +54,24 @@ class WP_Members_Admin_Tab_Emails {
 			<div id="post-body">
 				<div id="post-body-content">
 					<div class="postbox">
-						<h3><span>WP-Members <?php _e( 'Email Messages', 'wp-members' ); ?></span></h3>
+						<h3><span>WP-Members <?php esc_html_e( 'Email Messages', 'wp-members' ); ?></span></h3>
 						<div class="inside">
 							<p>
-							<?php _e( 'You can customize the content of the emails sent by the plugin.', 'wp-members' ); ?><br />
+							<?php esc_html_e( 'You can customize the content of the emails sent by the plugin.', 'wp-members' ); ?><br />
 							<a href="https://rocketgeek.com/plugins/wp-members/docs/customizing-emails/" target="_blank">
-							<?php _e( 'A list of shortcodes is available here.', 'wp-members' ); ?></a>
+							<?php esc_html_e( 'A list of shortcodes is available here.', 'wp-members' ); ?></a>
 							</p>
 							<hr />
 							<form name="updateemailform" id="updateemailform" method="post" action="<?php echo esc_url( wpmem_admin_form_post_url() ); ?>"> 
 							<?php wp_nonce_field( 'wpmem-update-emails' ); ?>
 								<table class="form-table"> 
 									<tr valign="top"> 
-										<th scope="row"><?php _e( 'Set a custom email address', 'wp-members' ); ?></th> 
-										<td><input type="text" name="wp_mail_from" size="40" value="<?php echo esc_attr( $wpmem->email->from ); ?>" />&nbsp;<span class="description"><?php _e( '(optional)', 'wp-members' ); ?> email@yourdomain.com</span></td> 
+										<th scope="row"><?php esc_html_e( 'Set a custom email address', 'wp-members' ); ?></th> 
+										<td><input type="text" name="wp_mail_from" size="40" value="<?php echo esc_attr( $wpmem->email->from ); ?>" />&nbsp;<span class="description"><?php esc_html_e( '(optional)', 'wp-members' ); ?> email@yourdomain.com</span></td> 
 									</tr>
 									<tr valign="top"> 
-										<th scope="row"><?php _e( 'Set a custom email name', 'wp-members' ); ?></th> 
-										<td><input type="text" name="wp_mail_from_name" size="40" value="<?php echo esc_attr( stripslashes( $wpmem->email->from_name ) ); ?>" />&nbsp;<span class="description"><?php _e( '(optional)', 'wp-members' ); ?> John Smith</span></td>
+										<th scope="row"><?php esc_html_e( 'Set a custom email name', 'wp-members' ); ?></th> 
+										<td><input type="text" name="wp_mail_from_name" size="40" value="<?php echo esc_attr( stripslashes( $wpmem->email->from_name ) ); ?>" />&nbsp;<span class="description"><?php esc_html_e( '(optional)', 'wp-members' ); ?> John Smith</span></td>
 									</tr>
 									<tr valign="top">
 										<th scope="row"><?php _e( 'Send HTML email', 'wp-members' ); ?></th>
@@ -84,13 +84,13 @@ class WP_Members_Admin_Tab_Emails {
 											self::do_email_input( $email );
 										}
 									}
-									$arr = get_option( 'wpmembers_email_footer' ); 
+									$arr = wpmem_get_email_settings( 'wpmembers_email_footer' ); 
 									$footer_args = array(
 										'body_input' => 'wpmembers_email_footer_body',
 										'body_value' => $arr,
 									); ?>
 									<tr valign="top">
-										<th scope="row"><strong><?php echo __( "Email Signature", 'wp-members' ); ?></strong> <span class="description"><?php _e( '(optional)', 'wp-members' ); ?></span></th>
+										<th scope="row"><strong><?php echo esc_html__( "Email Signature", 'wp-members' ); ?></strong> <span class="description"><?php _e( '(optional)', 'wp-members' ); ?></span></th>
 										<td><?php self::do_email_editor( $footer_args ); ?></td>
 									</tr>
 									<tr><td colspan="2"><hr /></td></tr>
@@ -98,7 +98,7 @@ class WP_Members_Admin_Tab_Emails {
 										<th scope="row">&nbsp;</th>
 										<td>
 											<input type="hidden" name="wpmem_admin_a" value="update_emails" />
-											<?php submit_button( __( 'Update Emails', 'wp-members' ) ); ?>
+											<?php submit_button( esc_html__( 'Update Emails', 'wp-members' ) ); ?>
 										</td>
 									</tr>
 								</table>
@@ -106,7 +106,7 @@ class WP_Members_Admin_Tab_Emails {
 						</div><!-- .inside -->
 					</div><!-- #post-box -->
 					<div class="postbox">
-						<h3><span><?php _e( 'Need help?', 'wp-members' ); ?></span></h3>
+						<h3><span><?php esc_html_e( 'Need help?', 'wp-members' ); ?></span></h3>
 						<div class="inside">
 							<strong><i>See the <a href="https://rocketgeek.com/plugins/wp-members/docs/plugin-settings/emails/" target="_blank">Users Guide on email options</a>.</i></strong>
 						</div>
@@ -139,9 +139,9 @@ class WP_Members_Admin_Tab_Emails {
 			$wpmem->email->from      = sanitize_email( $_POST['wp_mail_from'] );
 			$wpmem->email->from_name = sanitize_text_field( $_POST['wp_mail_from_name'] );
 			$wpmem->email->html      = intval( wpmem_get( 'wpmem_email_html', 0 ) );
-			update_option( 'wpmembers_email_wpfrom', $wpmem->email->from );
-			update_option( 'wpmembers_email_wpname', $wpmem->email->from_name );
-			update_option( 'wpmembers_email_html',   $wpmem->email->html );
+			update_option( 'wpmembers_email_wpfrom', $wpmem->email->from, false );
+			update_option( 'wpmembers_email_wpname', $wpmem->email->from_name, false );
+			update_option( 'wpmembers_email_html',   $wpmem->email->html, false );
 		}
 
 		// Update the various emails being used.
@@ -169,7 +169,7 @@ class WP_Members_Admin_Tab_Emails {
 			}
 		}
 
-		return __( 'WP-Members emails were updated', 'wp-members' );
+		return esc_html__( 'WP-Members emails were updated', 'wp-members' );
 
 	}
 
@@ -201,7 +201,7 @@ class WP_Members_Admin_Tab_Emails {
 				'media_buttons' => false,
 				'textarea_rows' => 10,
 			);
-			wp_editor( $args['body_value'], esc_attr( $args['body_input'] ), $editor_args );
+			wp_editor( wp_unslash( $args['body_value'] ), esc_attr( $args['body_input'] ), $editor_args );
 		} else { ?>
 			<textarea name="<?php echo esc_attr( $args['body_input'] ); ?>" rows="12" cols="50" id="" class="large-text code"><?php echo esc_textarea( wp_unslash( $args['body_value'] ) ); ?></textarea>
         <?php }
@@ -221,7 +221,7 @@ class WP_Members_Admin_Tab_Emails {
 			'subj' => sanitize_text_field( wpmem_get( $args['subject_input'] ) ),
 			'body' => wp_kses( wpmem_get( $args['body_input'] ), 'post' ),
 		);
-		update_option( $args['name'], $settings, true );
+		update_option( $args['name'], $settings, false );
 		$wpmem->admin->emails[ $args['name'] ]['subject_value'] = $settings['subj'];
 		$wpmem->admin->emails[ $args['name'] ]['body_value']    = $settings['body'];
 		return;

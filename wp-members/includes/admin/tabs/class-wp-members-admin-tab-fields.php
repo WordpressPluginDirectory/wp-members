@@ -6,12 +6,12 @@
  * 
  * This file is part of the WP-Members plugin by Chad Butler
  * You can find out more about this plugin at https://rocketgeek.com
- * Copyright (c) 2006-2023  Chad Butler
+ * Copyright (c) 2006-2025  Chad Butler
  * WP-Members(tm) is a trademark of butlerblog.com
  *
  * @package WP-Members
  * @author Chad Butler
- * @copyright 2006-2023
+ * @copyright 2006-2025
  */
 
 // Exit if accessed directly.
@@ -98,8 +98,8 @@ class WP_Members_Admin_Tab_Fields {
 						$wpmem_new_fields[] = $field;
 					}
 				}
-				update_option( 'wpmembers_fields', $wpmem_new_fields );
-				$did_update = __( 'Fields deleted', 'wp-members' );
+				update_option( 'wpmembers_fields', $wpmem_new_fields, false );
+				$did_update = esc_html__( 'Fields deleted', 'wp-members' );
 			}
 
 			if ( $did_update ) { ?>
@@ -140,8 +140,8 @@ class WP_Members_Admin_Tab_Fields {
 			$field['checkbox_label'] = ''; // fixes unset variable at 308/309 since $field would not be set.
 		}
 		$form_action = ( $mode == 'edit' ) ? 'editfieldform' : 'addfieldform'; 
-		$span_optional = '<span class="description">' . __( '(optional)', 'wp-members' ) . '</span>';
-		$span_required = '<span class="req">' . __( '(required)', 'wp-members' ) . '</span>'; 
+		$span_optional = '<span class="description">' . esc_html__( '(optional)', 'wp-members' ) . '</span>';
+		$span_required = '<span class="req">' . esc_html__( '(required)', 'wp-members' ) . '</span>'; 
 		$form_submit = array( 'mode' => $mode ); 
 		if ( isset( $_GET['field'] ) ) {
 			$form_submit['field'] = $meta_key; 
@@ -218,6 +218,21 @@ class WP_Members_Admin_Tab_Fields {
 					<input type="checkbox" name="add_html" value="y" <?php //echo ( $mode == 'edit' ) ? checked( true, $field['html'] ) : false; ?> />
 				</li>
 				</div>-->
+			
+			<?php 
+			/**
+			 @todo add default value entry for field properties.
+			
+			if ( $mode == 'add' || ( $mode == 'edit' && ( in_array( $field['type'], array( 'text', 'number', 'date' ) ) ) ) ) {
+				echo ( $mode == 'add' ) ? '<div id="wpmem_default_value">' : '';
+				<li>
+					<label><?php _e( 'Default value', 'wp-members' ); ?></label>
+					<input type="text" name="add_default_value" value="<?php echo ( $mode == 'edit' ) ? ( isset( $field['default_value'] ) ? $field['default_value'] : false ) : false; ?>" /> <?php echo __( 'This will pre-populate the field with a default value. Leave empty if no default value is desired', 'wp-members' ) . ' ' . $span_optional; ?>
+				</li>
+				echo ( $mode == 'add' ) ? '</div>' : '';
+			}
+			*/ ?>
+
 			<?php if ( $mode == 'add' || ( $mode == 'edit' && ( in_array( $field['type'], array( 'text', 'password', 'email', 'url', 'number', 'date', 'textarea', 'timestamp' ) ) ) ) ) { ?>
 			<?php echo ( $mode == 'add' ) ? '<div id="wpmem_placeholder">' : ''; ?>
 				<li>
@@ -330,6 +345,7 @@ class WP_Members_Admin_Tab_Fields {
 				</li>
 				<?php echo ( $mode == 'add' ) ? '</div>' : '';
 				} ?>
+			<?php if ( $mode == 'add' || ( $mode == 'edit' && ( $field['type'] == 'select' || $field['type'] == 'multiselect' ) ) ) { ?>
 				<li>
 					<label style="vertical-align:top"><?php _e( 'Values (Displayed|Stored):', 'wp-members' ); ?> <?php echo $span_required; ?></label>
 					<textarea name="add_dropdown_value" id="add_dropdown_value" rows="5" cols="40"><?php
@@ -342,18 +358,36 @@ class WP_Members_Admin_Tab_Fields {
 	} else {
 	echo $field['values'][ $row ]; echo ( $row == count( $field['values'] )- 1  ) ? "" : ",\n";
 	} }
-					} else {
-						if (version_compare(PHP_VERSION, '5.3.0') >= 0) { ?>
+					} else { ?>
 ---- Select One ----|,
 Choice One|choice_one,
 "1,000|one_thousand",
 "1,000-10,000|1,000-10,000",
-Last Row|last_row<?php } else { ?>
----- Select One ----|,
+Last Row|last_row
+					<?php } ?></textarea>
+					</li>
+			<?php } ?>
+			<?php if ( $mode == 'add' || ( $mode == 'edit' && ( $field['type'] == 'radio' || $field['type'] == 'multicheckbox' ) ) ) { ?>
+				<li>
+					<label style="vertical-align:top"><?php _e( 'Values (Displayed|Stored):', 'wp-members' ); ?> <?php echo $span_required; ?></label>
+					<textarea name="add_radio_value" id="add_radio_value" rows="5" cols="40"><?php
+	// Accomodate editing the current radio values or create radio value example.
+	if ( $mode == 'edit' ) {
+	for ( $row = 0; $row < count( $field['values'] ); $row++ ) {
+	// If the row contains commas (i.e. 1,000-10,000), wrap in double quotes.
+	if ( strstr( $field['values'][ $row ], ',' ) ) {
+	echo '"' . $field['values'][ $row ]; echo ( $row == count( $field['values'] )- 1  ) ? '"' : "\",\n";
+	} else {
+	echo $field['values'][ $row ]; echo ( $row == count( $field['values'] )- 1  ) ? "" : ",\n";
+	} }
+					} else { ?>
 Choice One|choice_one,
-Choice 2|choice_two,
-Last Row|last_row<?php } } ?></textarea>
+"1,000|one_thousand",
+"1,000-10,000|1,000-10,000",
+Last Row|last_row
+					<?php } ?></textarea>
 				</li>
+			<?php } ?>
 				<li>
 					<label>&nbsp;</label>
 					<span class="description"><?php _e( 'Options should be Option Name|option_value,', 'wp-members' ); ?></span>
@@ -386,7 +420,7 @@ Last Row|last_row<?php } } ?></textarea>
 				} ?>
 			<input type="hidden" name="add_order_id" value="<?php echo intval( $field_order_id ); ?>" />
 			<input type="hidden" name="wpmem_admin_a" value="<?php echo ( $mode == 'edit' ) ? 'edit_field' : 'add_field'; ?>" />
-			<?php $text = ( $mode == 'edit' ) ? __( 'Save Changes', 'wp-members' ) : esc_html__( 'Add Field', 'wp-members' ); ?>
+			<?php $text = ( $mode == 'edit' ) ? esc_html__( 'Save Changes', 'wp-members' ) : esc_html__( 'Add Field', 'wp-members' ); ?>
 			<?php submit_button( $text ); ?>
 			<p><a href="<?php echo esc_url( add_query_arg( array( 'page' => 'wpmem-settings', 'tab' => 'fields' ), get_admin_url() . 'options-general.php' ) ); ?>">&laquo; <?php esc_html_e( 'Return to Fields Table', 'wp-members' ); ?></a></p>
 		</form><?php
@@ -408,6 +442,20 @@ Last Row|last_row<?php } } ?></textarea>
 		$wpmem_ut_fields = get_option( 'wpmembers_utfields' );
 		$wpmem_us_fields_skip = array( 'username', 'user_email', 'confirm_email', 'password', 'confirm_password' );	
 		$wpmem_us_fields = get_option( 'wpmembers_usfields' );
+		if ( wpmem_is_woo_active() ) {
+			if ( 1 == $wpmem->woo->add_checkout_fields ) {
+				$wpmem_wc_checkout_skip = array_merge( rktgk_wc_checkout_fields(), array( 'username', 'user_login', 'user_email', 'confirm_email', 'password', 'confirm_password' ) );
+				$wpmem_wc_checkout_fields = get_option( 'wpmembers_wcchkout_fields' );
+			}
+			if ( 1 == $wpmem->woo->add_my_account_fields ) {
+				$wpmem_wc_acct_skip = array_merge( rktgk_wc_checkout_fields(), array( 'username', 'user_login', 'user_email', 'confirm_email', 'password', 'confirm_password' ) );
+				$wpmem_wc_acct_fields = get_option( 'wpmembers_wcacct_fields' );
+			}
+			if ( 1 == $wpmem->woo->add_update_fields ) {
+				$wpmem_wc_update_skip = array_merge( rktgk_wc_checkout_fields(), array( 'username', 'user_login', 'user_email', 'confirm_email', 'password', 'confirm_password' ) );
+				$wpmem_wc_update_fields = get_option( 'wpmembers_wcupdate_fields' );
+			}
+		}
 
 		$wpmem_fields = get_option( 'wpmembers_fields', array() );
 		foreach ( $wpmem_fields as $key => $field ) {
@@ -424,6 +472,18 @@ Last Row|last_row<?php } } ?></textarea>
 				$meta = $field[2];
 				$ut_checked = ( ( $wpmem_ut_fields ) && ( array_key_exists( $meta, $wpmem_ut_fields ) ) ) ? $meta : false;
 				$us_checked = ( ( $wpmem_us_fields ) && ( array_key_exists( $meta, $wpmem_us_fields ) ) ) ? $meta : false;
+
+				if ( wpmem_is_woo_active() ) {
+					if ( 1 == $wpmem->woo->add_checkout_fields ) { 
+						$wc_chkout_checked = ( ( $wpmem_wc_checkout_fields ) && ( in_array( $meta, $wpmem_wc_checkout_fields ) ) ) ? $meta : false;
+					}
+					if ( 1 == $wpmem->woo->add_my_account_fields ) {
+						$wc_acct_checked = ( ( $wpmem_wc_acct_fields ) && ( in_array( $meta, $wpmem_wc_acct_fields ) ) ) ? $meta : false;
+					}
+					if ( 1 == $wpmem->woo->add_update_fields ) {
+						$wc_update_checked = ( ( $wpmem_wc_update_fields ) && ( in_array( $meta, $wpmem_wc_update_fields ) ) ) ? $meta : false;
+					}
+				}
 
 				$item['order']    = $field[0];
 				$item['label']    = $field[1];
@@ -460,49 +520,50 @@ Last Row|last_row<?php } } ?></textarea>
 					'compare' =>  ( ( $us_checked == $meta ) ? $field[1] : false ) 
 				) ) : '';
 
-				/*
 				if ( wpmem_is_woo_active() ) {
-					if ( wpmem_is_enabled( 'woo/add_checkout_fields' ) ) {
-						$item['wcchkout'] = ( ! in_array( $meta, $wpmem_ut_fields_skip ) && ! in_array( $meta, $wpmem_wc_checkout_skip ) ) ? wpmem_form_field( array(
+					//if ( wpmem_is_enabled( 'woo/add_checkout_fields' ) ) {
+					if ( 1 == $wpmem->woo->add_checkout_fields ) {
+						$item['wcchkout'] = ( ! in_array( $meta, $wpmem_wc_checkout_skip ) && $item['type'] != 'file' && $item['type'] != 'image' ) ? wpmem_form_field( array(
 							'name' => "wpmem_fields_wcchkout[]",
 							'type' => 'checkbox',
 							'value' => $meta,
-							'compare' => ( ( isset( $field['wcchkout'] ) && 'y' == $field['wcchkout'] ) ? $meta : false ) 
+							'compare' => ( ( $wc_chkout_checked == $meta ) ? $meta : false )
 						) ) : '';
 					}
-					if ( wpmem_is_enabled( 'woo/add_my_account_fields' ) ) {
-						$item['wcaccount'] = ( ! in_array( $meta, $wpmem_ut_fields_skip ) && ! in_array( $meta, $wpmem_wc_checkout_skip ) ) ? wpmem_form_field( array(
+					//if ( wpmem_is_enabled( 'woo/add_my_account_fields' ) ) {
+					if ( 1 == $wpmem->woo->add_my_account_fields ) {
+						$item['wcaccount'] = ( ! in_array( $meta, $wpmem_wc_acct_skip ) && $item['type'] != 'file' && $item['type'] != 'image'  ) ? wpmem_form_field( array(
 							'name' => "wpmem_fields_wcaccount[]",
 							'type' => 'checkbox',
 							'value' => $meta,
-							'compare' => ( ( isset( $field['wcaccount'] ) && 'y' == $field['wcaccount'] ) ? $meta : false ) 
+							'compare' => ( ( $wc_acct_checked == $meta ) ? $meta : false ) 
 						) ) : '';
 					}
-					if ( wpmem_is_enabled( 'woo/add_update_fields' ) ) {
-						$item['wcupdate'] = ( ! in_array( $meta, $wpmem_ut_fields_skip ) && ! in_array( $meta, $wpmem_wc_checkout_skip ) ) ? wpmem_form_field( array(
+					//if ( wpmem_is_enabled( 'woo/add_update_fields' ) ) {
+					if ( 1 == $wpmem->woo->add_update_fields ) {
+						$item['wcupdate'] = ( ! in_array( $meta, $wpmem_wc_update_skip ) && $item['type'] != 'file' && $item['type'] != 'image'  ) ? wpmem_form_field( array(
 							'name' => "wpmem_fields_wcupdate[]",
 							'type' => 'checkbox',
 							'value' => $meta,
-							'compare' => ( ( isset( $field['wcupdate'] ) && 'y' == $field['wcupdate'] ) ? $meta : false ) 
+							'compare' => ( ( $wc_update_checked == $meta ) ? $meta : false )
 						) ) : '';
 					}
 				}
-				*/
 
-				$item['edit'] = '<span class="dashicons dashicons-move" title="' . __( 'Drag and drop to reorder fields', 'wp-members' ) . '"></span>';
+				$item['edit'] = '<span class="dashicons dashicons-move" title="' . esc_html__( 'Drag and drop to reorder fields', 'wp-members' ) . '"></span>';
 
 				$field_items[] = $item;
 			}
 		}
 
 		$extra_user_screen_items = array(
-			'user_registered'       => __( 'Registration Date', 'wp-members' ),
-			'_wpmem_user_confirmed' => __( 'Confirmed',         'wp-members' ),
-			'active'                => __( 'Activated',         'wp-members' ),
-			'wpmem_reg_ip'          => __( 'Registration IP',   'wp-members' ),
-			'exp_type'              => __( 'Subscription Type', 'wp-members' ),
-			'expires'               => __( 'Expires',           'wp-members' ),
-			'user_id'               => __( 'User ID',           'wp-members' ),
+			'user_registered'       => esc_html__( 'Registration Date', 'wp-members' ),
+			'_wpmem_user_confirmed' => esc_html__( 'Confirmed',         'wp-members' ),
+			'active'                => esc_html__( 'Activated',         'wp-members' ),
+			'wpmem_reg_ip'          => esc_html__( 'Registration IP',   'wp-members' ),
+			'exp_type'              => esc_html__( 'Subscription Type', 'wp-members' ),
+			'expires'               => esc_html__( 'Expires',           'wp-members' ),
+			'user_id'               => esc_html__( 'User ID',           'wp-members' ),
 		);
 
 		foreach ( $extra_user_screen_items as $key => $item ) {
@@ -513,7 +574,7 @@ Last Row|last_row<?php } } ?></textarea>
 				|| ( '_wpmem_user_confirmed' == $key && 1 == $wpmem->act_link ) 
 				|| ( 'active' == $key && 1 == $wpmem->mod_reg ) 
 				|| defined( 'WPMEM_EXP_MODULE' ) && $wpmem->use_exp == 1 && ( 'exp_type' == $key || 'expires' == $key ) ) {
-				$user_screen_items[ $key ] = array( 'label' => __( $item, 'wp-members' ), 'meta' => $key,
+				$user_screen_items[ $key ] = array( 'label' => esc_html__( $item, 'wp-members' ), 'meta' => $key,
 					'userscrn' => wpmem_form_field( "wpmem_fields_uscreen[{$key}]", 'checkbox', $item, $ut_checked ),
 				);
 			}
@@ -536,8 +597,8 @@ Last Row|last_row<?php } } ?></textarea>
 
 		$table = new WP_Members_Fields_Table();
 
-		$heading     = __( 'Manage Fields', 'wp-members' );
-		//$description = __( 'Displaying fields for:', 'wp-members' );
+		$heading     = esc_html__( 'Manage Fields', 'wp-members' );
+		//$description = esc_html__( 'Displaying fields for:', 'wp-members' );
 		//$which_form  = $wpmem->form_tags[ $wpmem->admin->current_form ];
 
 		echo '<div class="wrap">';
@@ -561,16 +622,7 @@ Last Row|last_row<?php } } ?></textarea>
 
 	public static function bulk_actions() { 
 		if ( 'wpmem-settings' == wpmem_get( 'page', false, 'get' ) && 'fields' == wpmem_get( 'tab', false, 'get' ) ) {
-		?><script type="text/javascript">
-			(function($) {
-				$(document).ready(function() {
-					$("table").attr("id", "wpmem-fields");
-					/**$("tr").attr('style', 'cursor:move;');**/
-				});
-			})(jQuery);
-			jQuery('<input id="add_field"  name="add_field" class="button action" type="submit" value="<?php _e( 'Add Field', 'wp-members' ); ?>" />').appendTo(".top .bulkactions");
-			jQuery('<input id="add_field2" name="add_field" class="button action" type="submit" value="<?php _e( 'Add Field', 'wp-members' ); ?>" />').appendTo(".bottom .bulkactions");
-		</script><?php
+			?><script type="text/javascript">(function($){$(document).ready(function(){$("table").attr("id","wpmem-fields");});})(jQuery);</script><?php
 		}
 	}
 
@@ -606,12 +658,21 @@ Last Row|last_row<?php } } ?></textarea>
 				check_admin_referer( 'bulk-settings_page_wpmem-settings' );
 
 				// Update user table fields.
-				$ut_fields_arr = wpmem_sanitize_array( wpmem_get( 'wpmem_fields_uscreen', array() ) );
-				update_option( 'wpmembers_utfields', $ut_fields_arr );
+				update_option( 'wpmembers_utfields', wpmem_sanitize_array( wpmem_get( 'wpmem_fields_uscreen', array() ) ), false );
 
 				// Update user search fields.
-				$us_fields_arr = wpmem_sanitize_array( wpmem_get( 'wpmem_fields_usearch', array() ) );
-				update_option( 'wpmembers_usfields', $us_fields_arr );
+				update_option( 'wpmembers_usfields', wpmem_sanitize_array( wpmem_get( 'wpmem_fields_usearch', array() ) ), false );
+				if ( wpmem_is_woo_active() ) {
+					if ( 1 == $wpmem->woo->add_checkout_fields ) {
+						update_option( 'wpmembers_wcchkout_fields', wpmem_sanitize_array( wpmem_get( 'wpmem_fields_wcchkout', array() ) ), false );
+					}
+					if ( 1 == $wpmem->woo->add_my_account_fields ) {
+						update_option( 'wpmembers_wcacct_fields', wpmem_sanitize_array( wpmem_get( 'wpmem_fields_wcaccount', array() ) ), false );
+					}
+					if ( 1 == $wpmem->woo->add_update_fields ) {
+						update_option( 'wpmembers_wcupdate_fields', wpmem_sanitize_array( wpmem_get( 'wpmem_fields_wcupdate', array() ) ), false );
+					}
+				}
 
 				$wpmem_fields_display_post  = wpmem_get( 'wpmem_fields_display',  array() );
 				$wpmem_fields_required_post = wpmem_get( 'wpmem_fields_required', array() );
@@ -636,11 +697,11 @@ Last Row|last_row<?php } } ?></textarea>
 				}
 
 				// Save updates.
-				update_option( 'wpmembers_fields', $wpmem_fields );
+				update_option( 'wpmembers_fields', $wpmem_fields, false );
 				$wpmem->forms->load_fields();
 				
 				// Set update message.
-				$did_update = __( 'WP-Members fields were updated', 'wp-members' );
+				$did_update = esc_html__( 'WP-Members fields were updated', 'wp-members' );
 				
 				// Return.
 				return $did_update;
@@ -664,22 +725,22 @@ Last Row|last_row<?php } } ?></textarea>
 				$add_option = sanitize_text_field( wpmem_get( 'add_option' ) );
 
 				// Error check that field label and option name are included and unique.
-				$add_field_err_msg = ( ! $add_name   ) ? __( 'Field Label is required. Nothing was updated.', 'wp-members' ) : $add_field_err_msg;
-				$add_field_err_msg = ( ! $add_option ) ? __( 'Meta Key is required. Nothing was updated.',    'wp-members' ) : $add_field_err_msg;
+				$add_field_err_msg = ( ! $add_name   ) ? esc_html__( 'Field Label is required. Nothing was updated.', 'wp-members' ) : $add_field_err_msg;
+				$add_field_err_msg = ( ! $add_option ) ? esc_html__( 'Meta Key is required. Nothing was updated.',    'wp-members' ) : $add_field_err_msg;
 
-				$add_field_err_msg = ( ! preg_match("/^[A-Za-z0-9_]*$/", $add_option ) ) ? __( 'Meta Key must contain only letters, numbers, and underscores', 'wp-members' ) : $add_field_err_msg;
+				$add_field_err_msg = ( ! preg_match("/^[A-Za-z0-9_]*$/", $add_option ) ) ? esc_html__( 'Meta Key must contain only letters, numbers, and underscores', 'wp-members' ) : $add_field_err_msg;
 
 				// Check for duplicate field names.
 				$chk_fields = array();
 				foreach ( $wpmem_fields as $field ) {
 					$chk_fields[] = $field[2];
 				}
-				$add_field_err_msg = ( in_array( $add_option, $chk_fields ) ) ? __( 'A field with that meta key already exists', 'wp-members' ) : $add_field_err_msg;
+				$add_field_err_msg = ( in_array( $add_option, $chk_fields ) ) ? esc_html__( 'A field with that meta key already exists', 'wp-members' ) : $add_field_err_msg;
 
 				// Error check for reserved terms.
 				$reserved_terms = wpmem_wp_reserved_terms();
 				if ( in_array( strtolower( $add_option ), $reserved_terms ) ) {
-					$add_field_err_msg = sprintf( __( 'Sorry, "%s" is a <a href="https://codex.wordpress.org/Function_Reference/register_taxonomy#Reserved_Terms" target="_blank">reserved term</a>. Field was not added.', 'wp-members' ), $add_option );
+					$add_field_err_msg = sprintf( esc_html__( 'Sorry, "%s" is a <a href="https://codex.wordpress.org/Function_Reference/register_taxonomy#Reserved_Terms" target="_blank">reserved term</a>. Field was not added.', 'wp-members' ), $add_option );
 				}
 
 				// Error check option name for spaces and replace with underscores.
@@ -720,7 +781,7 @@ Last Row|last_row<?php } } ?></textarea>
 				}
 
 				if ( $type == 'checkbox' ) {
-					$add_field_err_msg = ( ! $_POST['add_checked_value'] ) ? __( 'Checked value is required for checkboxes. Nothing was updated.', 'wp-members' ) : $add_field_err_msg;
+					$add_field_err_msg = ( ! $_POST['add_checked_value'] ) ? esc_html__( 'Checked value is required for checkboxes. Nothing was updated.', 'wp-members' ) : $add_field_err_msg;
 					$arr[7] = sanitize_text_field( wpmem_get( 'add_checked_value', false ) );
 					$arr[8] = ( 'y' == wpmem_get( 'add_checked_default', 'n'  ) ) ? 'y' : 'n';
 					$arr['checkbox_label'] = intval( wpmem_get( 'add_checkbox_label', 0 ) );
@@ -732,15 +793,22 @@ Last Row|last_row<?php } } ?></textarea>
 					|| $type == 'multicheckbox' 
 				) {
 					// Get the values.
-					$str = stripslashes( sanitize_textarea_field( $_POST['add_dropdown_value'] ) );
+					$which_post = ( $type == 'radio' || $type == 'multicheckbox' ) ? 'add_radio_value' : 'add_dropdown_value';
+					$str = stripslashes( sanitize_textarea_field( $_POST[ $which_post ] ) );
 					// Remove linebreaks.
 					$str = trim( str_replace( array("\r", "\r\n", "\n"), '', $str ) );
 					// Create array.
 					if ( ! function_exists( 'str_getcsv' ) ) {
-						$arr[7] = explode( ',', $str );
+						$clean_values = explode( ',', $str );
 					} else {
-						$arr[7] = str_getcsv( $str, ',', '"' );
+						$clean_values = str_getcsv( $str, ',', '"' );
 					}
+					// Clean input values.
+					foreach ( $clean_values as $key => $raw_value ) {
+						$pieces = array_map( 'trim', explode( '|', $raw_value ) );
+						$clean_values[ $key ] = $pieces[0] . '|' . $pieces[1];
+					}
+					$arr[7] = $clean_values;
 					// If multiselect or multicheckbox, set delimiter.
 					if ( 'multiselect' == $type || 'multicheckbox' == $type ) {
 						$arr[8] = ( ',' === wpmem_get( 'add_delimiter_value', '|' ) ) ? ',' : '|';
@@ -752,7 +820,7 @@ Last Row|last_row<?php } } ?></textarea>
 				}
 
 				if ( wpmem_get( 'add_type' ) == 'hidden' ) { 
-					$add_field_err_msg = ( ! $_POST['add_hidden_value'] ) ? __( 'A value is required for hidden fields. Nothing was updated.', 'wp-members' ) : $add_field_err_msg;
+					$add_field_err_msg = ( ! $_POST['add_hidden_value'] ) ? esc_html__( 'A value is required for hidden fields. Nothing was updated.', 'wp-members' ) : $add_field_err_msg;
 					$arr[7] = ( isset( $_POST['add_hidden_value'] ) ) ? sanitize_text_field( stripslashes( $_POST['add_hidden_value'] ) ) : '';
 				}
 
@@ -763,7 +831,7 @@ Last Row|last_row<?php } } ?></textarea>
 				if ( $action == 'add_field' ) {
 					if ( ! $add_field_err_msg ) {
 						array_push( $wpmem_fields, $arr );
-						$did_update = sprintf( __( '%s was added', 'wp-members' ), esc_html( $_POST['add_name'] ) );
+						$did_update = sprintf( esc_html__( '%s was added', 'wp-members' ), esc_html( $_POST['add_name'] ) );
 					} else {
 						$did_update = $add_field_err_msg;
 					}
@@ -776,13 +844,13 @@ Last Row|last_row<?php } } ?></textarea>
 							}
 						}
 					}
-					$did_update =  sprintf( __( '%s was updated', 'wp-members' ), esc_html( stripslashes( $add_name ) ) );
-					$did_update.= '<p><a href="' . esc_url( add_query_arg( array( 'page' => 'wpmem-settings', 'tab' => 'fields' ), get_admin_url() . 'options-general.php' ) ) . '">&laquo; ' . __( 'Return to Fields Table', 'wp-members' ) . '</a></p>';
+					$did_update =  sprintf( esc_html__( '%s was updated', 'wp-members' ), esc_html( stripslashes( $add_name ) ) );
+					$did_update.= '<p><a href="' . esc_url( add_query_arg( array( 'page' => 'wpmem-settings', 'tab' => 'fields' ), get_admin_url() . 'options-general.php' ) ) . '">&laquo; ' . esc_html__( 'Return to Fields Table', 'wp-members' ) . '</a></p>';
 				}
 
 				$wpmem_newfields = $wpmem_fields;
 
-				update_option( 'wpmembers_fields', $wpmem_newfields );
+				update_option( 'wpmembers_fields', $wpmem_newfields, false );
 				$wpmem->forms->load_fields();
 				return $did_update;		
 			}
@@ -829,7 +897,7 @@ Last Row|last_row<?php } } ?></textarea>
 		}
 
 		// Save fields array with new current form field order.
-		update_option( 'wpmembers_fields', $wpmem_new_fields ); 
+		update_option( 'wpmembers_fields', $wpmem_new_fields, false ); 
 
 		// Indicate successful transaction.
 		_e( 'Form field order updated.', 'wp-members' );

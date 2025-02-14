@@ -4,13 +4,13 @@
  * 
  * This file is part of the WP-Members plugin by Chad Butler
  * You can find out more about this plugin at https://rocketgeek.com
- * Copyright (c) 2006-2023  Chad Butler
+ * Copyright (c) 2006-2025  Chad Butler
  * WP-Members(tm) is a trademark of butlerblog.com
  *
  * @package    WP-Members
  * @subpackage WP-Members API Functions
  * @author     Chad Butler 
- * @copyright  2006-2023
+ * @copyright  2006-2025
  */
 
 /**
@@ -174,6 +174,19 @@ function wpmem_forgot_username_form() {
 }
 
 /**
+ * Resend confirmation link form.
+ *
+ * @since 3.5.0
+ *
+ * @global object $wpmem The WP_Members object class.
+ * @return string $str   The generated html for the forgot username form.
+ */
+function wpmem_resend_confirmation_form() {
+	global $wpmem;
+	return $wpmem->forms->do_shortform( 'reconfirm' );
+}
+
+/**
  * Add registration fields to the native WP registration.
  *
  * @since 2.8.3
@@ -183,8 +196,9 @@ function wpmem_forgot_username_form() {
  * @global  stdClass  $wpmem
  * @param   string    $process
  */
-function wpmem_wp_register_form( $process = 'register_wp' ) {
+function wpmem_wp_register_form( $process ) {
 	global $wpmem;
+	$process = ( ! $process || '' == $process ) ? 'register_wp' : $process;
 	$wpmem->forms->wp_register_form( $process );
 }
 
@@ -289,22 +303,22 @@ function wpmem_form_label( $args ) {
  * @since 3.1.5 Checks if fields array is set or empty before returning.
  * @since 3.1.7 Added wpmem_form_fields filter.
  * @since 3.3.9 load_fields() moved to forms object class.
+ * @since 3.5.0 Add default for $tag to avoid PHP 8.2 issues.
  *
  * @global object $wpmem  The WP_Members object.
  * @param  string $tag    The action being used (default: null).
  * @param  string $form   The form being generated.
  * @return array  $fields The form fields.
  */
-function wpmem_fields( $tag = '', $form = 'default' ) {
+function wpmem_fields( $tag = 'all', $form = 'default' ) {
 	global $wpmem;
-	// Load fields if none are loaded.
-	if ( ! isset( $wpmem->fields ) || empty( $wpmem->fields ) ) {
-		$wpmem->forms->load_fields( $form );
-	}
-	
+
 	// @todo Review for removal.
 	$tag = $wpmem->convert_tag( $tag );
-	
+
+	// Change in 3.5.0, always load fields here, regardless of whether they are loaded or not. That way it resets for the requested instance.
+	$wpmem->forms->load_fields( $tag );
+
 	/**
 	 * Filters the fields array.
 	 *
@@ -398,49 +412,47 @@ function wpmem_form_nonce( $nonce, $echo = false ) {
  * @param array $checkout_fields
  */
 function wpmem_woo_checkout_fields( $checkout_fields = false ) {
-	$woo_checkout = array( 
-		'billing_first_name',
-		'billing_last_name',
-		'billing_company',
-		'billing_country',
-		'billing_address_1',
-		'billing_address_2',
-		'billing_city',
-		'billing_state',
-		'billing_postcode',
-		'billing_phone',
-		'billing_email',
-		'account_username',
-		'account_password',
-	);
+
 	$fields = wpmem_fields();
 	
 	if ( ! $checkout_fields ) {
 		$checkout_fields = WC()->checkout()->checkout_fields;
 	}
 
+	// Get saved checkout field settings.
+	$wpmembers_wcchkout = get_option( 'wpmembers_wcchkout_fields' );
+
 	foreach ( $fields as $meta_key => $field ) {
-		
-		if ( 1 != $fields[ $meta_key ]['register'] ) {
-			unset( $fields[ $meta_key ] );
+
+		if ( $wpmembers_wcchkout ) {
+
+			if ( ! in_array( $meta_key, $wpmembers_wcchkout ) ) {
+				unset( $fields[ $meta_key ] );
+			}
+
 		} else {
-			if ( isset( $checkout_fields['billing'][ $meta_key ] ) ) {
-				unset( $fields[ $meta_key ] );
-			}
-			if ( isset( $checkout_fields['shipping'][ $meta_key ] ) ) {
-				unset( $fields[ $meta_key ] );
-			}
-			if ( isset( $checkout_fields['account'][ $meta_key ] ) ) {
-				unset( $fields[ $meta_key ] );
-			}
-			if ( isset( $checkout_fields['order'][ $meta_key ] ) ) {
-				unset( $fields[ $meta_key ] );
-			}
-		}
 		
-		// @todo For now, remove any unsupported field types.
-		if ( 'hidden' == $field['type'] || 'image' == $field['type'] || 'file' == $field['type'] || 'membership' == $field['type'] ) {
-			unset( $fields[ $meta_key ] );
+			if ( 1 != $fields[ $meta_key ]['register'] ) {
+				unset( $fields[ $meta_key ] );
+			} else {
+				if ( isset( $checkout_fields['billing'][ $meta_key ] ) ) {
+					unset( $fields[ $meta_key ] );
+				}
+				if ( isset( $checkout_fields['shipping'][ $meta_key ] ) ) {
+					unset( $fields[ $meta_key ] );
+				}
+				if ( isset( $checkout_fields['account'][ $meta_key ] ) ) {
+					unset( $fields[ $meta_key ] );
+				}
+				if ( isset( $checkout_fields['order'][ $meta_key ] ) ) {
+					unset( $fields[ $meta_key ] );
+				}
+			}
+			
+			// @todo For now, remove any unsupported field types.
+			if ( 'hidden' == $field['type'] || 'image' == $field['type'] || 'file' == $field['type'] || 'membership' == $field['type'] ) {
+				unset( $fields[ $meta_key ] );
+			}
 		}
 	}
 	unset( $fields['username'] );
@@ -475,15 +487,25 @@ function wpmem_woo_checkout_form( $checkout_fields ) {
 	$priority = apply_filters( 'wpmem_wc_checkout_field_priority_seed', 10 );
 	
 	foreach ( $fields as $meta_key => $field ) {
+		
+		// All field types have these.
 		$checkout_fields['order'][ $meta_key ] = array(
 			'type'     => $fields[ $meta_key ]['type'],
 			'label'    => ( 'tos' == $meta_key ) ? $wpmem->forms->get_tos_link( $field, 'woo' ) : $fields[ $meta_key ]['label'],
 			'required' =>  $fields[ $meta_key ]['required'],
 			'priority' => $priority,
 		);
+		
+		// If there is a placeholder.
 		if ( isset( $fields[ $meta_key ]['placeholder'] ) ) {
 			$checkout_fields['order'][ $meta_key ]['placeholder'] = $fields[ $meta_key ]['placeholder'];
 		}
+
+		if ( 'select' == wpmem_get_field_type( $meta_key ) ) {
+			$checkout_fields['order'][ $meta_key ]['options'] = wpmem_get_field_options( $meta_key );
+		}
+
+		// Increment priority
 		$priority = $priority + 10;
 	}
 	return $checkout_fields;
@@ -541,22 +563,80 @@ function wpmem_woo_checkout_update_meta( $order_id ) {
  */
 function wpmem_woo_edit_account_form() {
 	$fields = wpmem_woo_edit_account_fields();
-	foreach ( $fields as $meta_key => $field ) { ?>
-		<p class="woocommerce-form-row woocommerce-form-row--wide form-row form-row-wide">
-			<label for="<?php echo $meta_key; ?>"><?php _e( $field['label'], 'wp-members' ); ?></label>
-			<input type="text" class="woocommerce-Input woocommerce-Input--text input-text" name="<?php echo $meta_key; ?>" id="<?php echo $meta_key; ?>" value="<?php echo wpmem_get_user_meta( get_current_user_id(), $meta_key ); ?>" />
-		</p>
-	<?php }
+	foreach ( $fields as $meta_key => $field ) { 
+		$args = array( 
+			'type' => wpmem_get_field_type( $meta_key ),
+			'label' => wpmem_get_field_label( $meta_key ),
+			'required' => wpmem_is_field_required( $meta_key )
+		);
+		if ( 'checkbox' == wpmem_get_field_type( $meta_key ) ) {
+			$args['checked_value'] = $field['checked_value'];
+		}
+		if ( 'select' == wpmem_get_field_type( $meta_key ) || 'radio' == wpmem_get_field_type( $meta_key ) ) {
+			$args['options'] = wpmem_get_field_options( $meta_key );
+		}
+		$value = esc_attr( wpmem_get_user_meta( get_current_user_id(), $meta_key ) );
+		woocommerce_form_field( $meta_key, $args, $value );
+	}
 }
 
 function wpmem_woo_edit_account_fields() {
 	$fields = wpmem_fields();
-	foreach ( $fields as $meta => $settings ) {
-		if ( isset( $settings['wcupdate'] ) && true == $settings['wcupdate'] ) {
-			$return_fields[ $meta ] = $settings;
+	// Get saved checkout field settings.
+	$wpmembers_wcupdate = get_option( 'wpmembers_wcupdate_fields' );
+	if ( $wpmembers_wcupdate ) {
+		foreach ( $fields as $meta => $field ) {
+			if ( in_array( $meta, $wpmembers_wcupdate ) ) {
+				$return_fields[ $meta ] = $field;
+			}
+		}
+		return $return_fields;
+	}
+}
+
+/**
+ * Sets required fields for WooCommerce Edit Account form. 
+ * 
+ * @since 3.5.1
+ */
+function wpmem_woo_edit_account_required( $required_fields ) {
+	$fields = wpmem_fields();
+	// Get saved checkout field settings.
+	$wpmembers_wcupdate = get_option( 'wpmembers_wcupdate_fields' );
+	if ( $wpmembers_wcupdate ) {
+		foreach ( $fields as $meta => $field ) {
+			if ( in_array( $meta, $wpmembers_wcupdate ) && wpmem_is_field_required( $meta ) ) {
+				$required_fields[ $meta ] = wpmem_get_field_label( $meta );
+			}
 		}
 	}
-	return $return_fields;
+	return $required_fields;
+}
+
+/**
+ * Saves WooCommerce Edit Account custom field values on update.
+ * 
+ * @since 3.5.1
+ */
+function wpmem_woo_edit_account_save( $user_id ) {
+	$fields = wpmem_fields();
+	// Get saved checkout field settings.
+	$wpmembers_wcupdate = get_option( 'wpmembers_wcupdate_fields' );
+	if ( $wpmembers_wcupdate ) {
+		foreach ( $fields as $meta => $field ) {
+			if ( in_array( $meta, $wpmembers_wcupdate ) ) {
+				$field_type = wpmem_get_field_type( $meta );
+				if ( 'multiselect' == $field_type || 'multicheckbox' == $field_type ) {
+					$value = wpmem_get( $meta, false );
+					$value = implode( $field['delimiter'], $value );
+					$sanitized_value = sanitize_text_field( $value );
+				} else {
+					$sanitized_value = wpmem_get_sanitized( $meta, 'post', $field_type );
+				}
+				update_user_meta( $user_id, $meta, $sanitized_value );
+			}
+		}
+	}
 }
 
 /**
@@ -592,34 +672,47 @@ function wpmem_form_field_wc_custom_field_types( $field, $key, $args, $value ) {
 
 	// Let's only mess with WP-Members fields (in case another checkout fields plugin is used).
 	if ( array_key_exists( $key, $wpmem_fields ) ) {
-		
-		// If it is a checkbox.
-		if ( 'checkbox' == $wpmem_fields[ $key ]['type'] ) {
-			
-			if ( ! $_POST && $wpmem_fields[ $key ]['checked_default'] ) {
-				$field = str_replace( '<input type="checkbox"', '<input type="checkbox" checked ', $field );
-			}
 
-		} else {
-		
-			$field_args = array(
-				'name' => $key,
-				'type' => $wpmem_fields[ $key ]['type'],
-				'required' => $wpmem_fields[ $key ]['required'],
-				'delimiter' => $wpmem_fields[ $key ]['delimiter'],
-				'value' => $wpmem_fields[ $key ]['values'],
-			);
+		switch ( $wpmem_fields[ $key ]['type'] ) {
 
-			$field_html = wpmem_form_field( $field_args );
-			$field_html = str_replace( 'class="' . $wpmem_fields[ $key ]['type'] . '"', 'class="' . $wpmem_fields[ $key ]['type'] . '" style="display:initial;"', $field_html );
-			$field = '<p class="form-row ' . implode( ' ', $args['class'] ) .'" id="' . $key . '_field">
-				<label for="' . $key . '" class="' . implode( ' ', $args['label_class'] ) .'">' . $args['label'] . ( ( 1 == $wpmem_fields[ $key ]['required'] ) ? '&nbsp;<abbr class="required" title="required">*</abbr>' : '' ) . '</label>';
-			$field .= $field_html;
-			$field .= '</p>';
-		}
-		
-	}
+			case 'checkbox':
+				// If it is a checkbox that should be checked by default.
+				if ( $wpmem_fields[ $key ]['checked_default'] && ! is_user_logged_in() && ! $_POST ) {
+					$field = str_replace( '<input type="checkbox"', '<input type="checkbox" checked ', $field );
+				}
+				break;
+
+			case 'radio':
+			case 'select':
+			case 'multiselect':
+			case 'multicheckbox':
+				$field_args = array(
+					'name' => $key,
+					'type' => $wpmem_fields[ $key ]['type'],
+					'required' => $wpmem_fields[ $key ]['required'],
+					'delimiter' => $wpmem_fields[ $key ]['delimiter'],
+					'value' => $wpmem_fields[ $key ]['values'],
+				);
+				$value = wpmem_get_user_meta( get_current_user_id(), $key );
+				
+				// Two possibilities: delimited string (WP-Members) or serialized (WooCommerce)
+				if ( is_array( $value ) ) {
+					$value = implode( $wpmem_fields[ $key ]['delimiter'], $value );
+				}
+
+				if ( is_user_logged_in() ) {
+					$field_args['compare'] = esc_attr( $value );
+				}
 	
+				$field_html = wpmem_form_field( $field_args );
+				$field_html = str_replace( 'class="' . $wpmem_fields[ $key ]['type'] . '"', 'class="' . esc_attr( $wpmem_fields[ $key ]['type'] ) . '" style="display:initial;"', $field_html );
+				$field = '<p class="form-row ' . implode( ' ', $args['class'] ) .'" id="' . esc_attr( $key ) . '_field">
+					<label for="' . esc_attr( $key ) . '" class="' . implode( ' ', $args['label_class'] ) .'">' . esc_html( $args['label'] ) . ( ( 1 == $wpmem_fields[ $key ]['required'] ) ? '&nbsp;<abbr class="required" title="required">*</abbr>' : '' ) . '</label>';
+				$field .= $field_html;
+				$field .= '</p>';
+				break;
+		}		
+	}
 	return $field;  
 }
 
@@ -636,7 +729,7 @@ function wpmem_woo_reg_validate( $username, $email, $errors ) {
 	
 	foreach ( $fields as $key => $field_args ) {
 		if ( 1 == $field_args['required'] && empty( $_POST[ $key ] ) ) {
-			$message = sprintf( __( '%s is a required field.', 'wp-members' ), '<strong>' . $field_args['label'] . '</strong>' );
+			$message = sprintf( wpmem_get_text( 'woo_reg_required_field' ), '<strong>' . esc_html( $field_args['label'] ) . '</strong>' );
 			$errors->add( $key, $message );
 		}
 	}
@@ -645,7 +738,7 @@ function wpmem_woo_reg_validate( $username, $email, $errors ) {
 
 function wpmem_is_reg_form_showing() {
 	global $wpmem;
-	return ( isset( $wpmem->reg_form_showing ) && true == $wpmem->reg_form_showing ) ? true : false;
+	return ( true == $wpmem->forms->is_reg_form_showing() ) ? true : false;
 }
 
 /**
@@ -692,4 +785,67 @@ function wpmem_checkbox_field_display( $field_meta, $echo = false ) {
 
 function wpmem_select_field_display( $field_meta, $value, $echo = false ) {
 	return wpmem_field_display_value( $field_meta, $value, $echo );
+}
+
+/**
+ * Returns the URL for a file field.
+ * 
+ * @since 3.5.1
+ */
+function wpmem_get_file_field_url( $field_meta, $user_id ) {
+	if ( wpmem_is_file_field( $field_meta ) ) {
+		return wp_get_attachment_url( get_user_meta( $user_id, $field_meta, true ) );
+	} else {
+		return false;
+	}
+}
+
+/**
+ * Returns the field type.
+ * 
+ * @since 3.5.1
+ */
+function wpmem_get_field_type( $field_meta ) {
+	$fields = wpmem_fields();
+	return $fields[ $field_meta ]['type'];
+}
+
+/**
+ * Returns true if file type field
+ * 
+ * @since 3.5.1
+ */
+function wpmem_is_file_field( $field_meta ) {
+	$field_type = wpmem_get_field_type( $field_meta );
+	return ( 'file' == $field_type || 'image' == $field_type ) ? true : false;
+}
+
+/**
+ * Returns the field label.
+ * 
+ * @since 3.5.1
+ */
+function wpmem_get_field_label( $meta_key ) {
+	$fields = wpmem_fields();
+	return $fields[ $meta_key ]['label'];
+}
+
+/**
+ * Checks if field is required.
+ * 
+ * @since 3.5.1
+ */
+function wpmem_is_field_required( $meta_key ) {
+	$fields = wpmem_fields();
+	return ( $fields[ $meta_key ]['required'] ) ? true : false; 
+}
+
+/**
+ * Gets select field options.
+ * 
+ * @since 3.5.1
+ */
+function wpmem_get_field_options( $meta_key ) {
+	$fields = wpmem_fields();
+	return $fields[ $meta_key ]['options'];
 }

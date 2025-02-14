@@ -24,13 +24,23 @@ class WP_Members_Admin_Users {
 		<script type="text/javascript">
 			var $j = jQuery.noConflict();
 			$j(document).ready(function() {
-		<?php if( $wpmem->mod_reg == 1 ) { ?>
+		<?php if ( wpmem_is_enabled( 'act_link' ) ) { ?>
+			$j('<option>').val('resend_welcome').text('<?php _e( 'Resend welcome email', 'wp-members' )?>').appendTo("select[name='action']");
+			$j('<option>').val('confirm').text('<?php _e( 'Confirm', 'wp-members' )?>').appendTo("select[name='action']");
+			$j('<option>').val('unconfirm').text('<?php _e( 'Unconfirm', 'wp-members' )?>').appendTo("select[name='action']");
+		<?php } ?>
+		<?php if ( wpmem_is_enabled( 'mod_reg' ) ) { ?>
 			$j('<option>').val('activate').text('<?php _e( 'Activate', 'wp-members' )?>').appendTo("select[name='action']");
 			$j('<option>').val('deactivate').text('<?php _e( 'Deactivate', 'wp-members' )?>').appendTo("select[name='action']");
 		<?php } ?>
 			$j('<option>').val('export').text('<?php _e( 'Export', 'wp-members' )?>').appendTo("select[name='action']");
 			$j('<input id="export_all" name="export_all" class="button action" type="submit" value="<?php _e( 'Export All Users', 'wp-members' ); ?>" />').appendTo(".top .bulkactions");
-		<?php if( $wpmem->mod_reg == 1 ) { ?>
+		<?php if ( wpmem_is_enabled( 'act_link' ) ) { ?>
+			$j('<option>').val('resend_welcome').text('<?php _e( 'Resend welcome email', 'wp-members' )?>').appendTo("select[name='action2']");
+			$j('<option>').val('confirm').text('<?php _e( 'Confirm', 'wp-members' )?>').appendTo("select[name='action2']");
+			$j('<option>').val('unconfirm').text('<?php _e( 'Unconfirm', 'wp-members' )?>').appendTo("select[name='action2']");
+		<?php } ?>
+		<?php if ( wpmem_is_enabled( 'mod_reg' ) ) { ?>
 			$j('<option>').val('activate').text('<?php _e( 'Activate', 'wp-members' )?>').appendTo("select[name='action2']");
 			$j('<option>').val('deactivate').text('<?php _e( 'Deactivate', 'wp-members' )?>').appendTo("select[name='action2']");
 		<?php } ?>
@@ -52,10 +62,10 @@ class WP_Members_Admin_Users {
 	 * @return array $actions
 	 */
 	static function insert_hover_links( $actions, $user_object ) {
-		global $wpmem;
+
 		if ( $user_object->ID != get_current_user_id() ) {
 			
-			if ( 1 == $wpmem->act_link ) {
+			if ( wpmem_is_enabled( 'act_link' ) ) {
 				if ( false === wpmem_is_user_confirmed( $user_object->ID ) ) {
 					$action = 'confirm';
 					$term   = __( 'Confirm', 'wp-members' );
@@ -68,10 +78,10 @@ class WP_Members_Admin_Users {
 				$actions[ $action ] = '<a href="' . esc_url( $url ) . '">' . esc_html( $term ) . '</a>';
 				
 				// Resend welcome email (will contain confirmation link if enabled).
-				//$actions['resend_welcome'] = '<a href="' . wp_nonce_url( add_query_arg( array( 'action' => 'resend_welcome', 'user' => $user_object->ID ), "users.php" ), 'resend-welcome' ) . '">' . __( 'Resend welcome email', 'wp-members' ) . '</a>';
+				$actions['resend_welcome'] = '<a href="' . wp_nonce_url( add_query_arg( array( 'action' => 'resend-single', 'user' => $user_object->ID ), "users.php" ), 'resend-user' ) . '">' . esc_html__( 'Resend welcome email', 'wp-members' ) . '</a>';
 			}
 			
-			if ( 1 == $wpmem->mod_reg ) {
+			if ( wpmem_is_enabled( 'mod_reg' ) ) {
 				$is_active = wpmem_is_user_activated( $user_object->ID );
 
 				if ( false === $is_active ) {
@@ -120,6 +130,9 @@ class WP_Members_Admin_Users {
 
 			case 'activate':
 			case 'deactivate':
+			case 'confirm':
+			case 'unconfirm':
+			case 'resend_welcome':
 
 				// Validate nonce.
 				check_admin_referer( 'bulk-users' );
@@ -136,18 +149,42 @@ class WP_Members_Admin_Users {
 						// Current user cannot activate or deactivate themselves.
 						if ( $user != get_current_user_id() ) {
 							// Check to see if the user is already activated, if not, activate.
-							if ( 'activate' == $action && 1 != get_user_meta( $user, 'active', true ) ) {
+							if ( 'activate' == $action && ! wpmem_is_user_activated( $user ) ) {
 								wpmem_activate_user( $user );
-							} elseif( 'deactivate' == $action ) {
+							} elseif ( 'deactivate' == $action ) {
 								wpmem_deactivate_user( $user );
+							} elseif ( 'confirm' == $action && ! wpmem_is_user_confirmed( $user ) ) {
+								wpmem_set_user_as_confirmed( $user );
+							} elseif ( 'unconfirm' == $action ) {
+								wpmem_set_user_as_unconfirmed( $user );
+							} elseif ( 'resend_welcome' == $action ) {
+								wpmem_email_to_user( array( 
+									'user_id' => $user,
+									'tag' => ( wpmem_is_enabled( 'mod_reg' ) ) ? 'newmod' : 'newreg'
+								));
 							}
 							$x++;
 						}
 					}
-					$msg = ( 'activate' == $action ) ? urlencode( sprintf( __( '%s users activated', 'wp-members' ), $x ) ) : urlencode( sprintf( __( '%s users deactivated', 'wp-members' ), $x ) );
+
+					switch ( $action ) {
+						case 'activate':
+							$msg = urlencode( sprintf( esc_html__( '%s users activated', 'wp-members' ), intval( $x ) ) );
+							break;
+						case 'deactivate':
+							$msg = urlencode( sprintf( esc_html__( '%s users deactivated', 'wp-members' ), intval( $x ) ) );
+						case 'confirm':
+							$msg = urlencode( sprintf( esc_html__( '%s users confirmed', 'wp-members' ), intval( $x ) ) );
+							break;
+						case 'unconfirm':
+							$msg = urlencode( sprintf( esc_html__( '%s users unconfirmed', 'wp-members' ), intval( $x ) ) );
+							break;
+						case 'resend_welcome':
+							$msg = urlencode( sprintf( esc_html__( 'Resent welcome to %s users', 'wp-members' ), intval( $x ) ) );
+					}
 
 				} else {
-					$msg = urlencode( __( 'No users selected', 'wp-members' ) );
+					$msg = urlencode( esc_html__( 'No users selected', 'wp-members' ) );
 				}
 
 				// Set the return message.
@@ -160,14 +197,14 @@ class WP_Members_Admin_Users {
 				// Validate nonce.
 				check_admin_referer( 'activate-user' );
 
-				// Get the users.
+				// Get the user.
 				$user_id = filter_var( $_REQUEST['user'], FILTER_VALIDATE_INT );
 
 				// Check to see if the user is already activated, if not, activate.
 				if ( $user_id == get_current_user_id() ) {
 					$msg = urlencode( sprintf( esc_html__( 'You cannot activate or deactivate yourself', 'wp-members' ) ) );
 
-				} elseif ( 'activate-single' == $action && false === wpmem_is_user_activated( $user_id ) ) {
+				} elseif ( 'activate-single' == $action && false == wpmem_is_user_activated( $user_id ) ) {
 					wpmem_activate_user( $user_id );
 					$user_info = get_userdata( $user_id );
 					$msg = urlencode( sprintf( esc_html__( "%s activated", 'wp-members' ), $user_info->user_login ) );
@@ -179,7 +216,7 @@ class WP_Members_Admin_Users {
 
 				} else {
 					// Set the return message.
-					$msg = urlencode( __( "That user is already active", 'wp-members' ) );
+					$msg = urlencode( esc_html__( "That user is already active", 'wp-members' ) );
 				}
 				$sendback = add_query_arg( array( 'activated' => $msg ), $sendback );
 				break;
@@ -190,7 +227,7 @@ class WP_Members_Admin_Users {
 				// Validate nonce.
 				check_admin_referer( 'confirm-user' );
 
-				// Get the users.
+				// Get the user.
 				$user_id = filter_var( $_REQUEST['user'], FILTER_VALIDATE_INT );
 
 				// Check to see if the user is already activated, if not, activate.
@@ -209,8 +246,28 @@ class WP_Members_Admin_Users {
 
 				} else {
 					// Set the return message.
-					$msg = urlencode( __( "That user is already confirmed", 'wp-members' ) );
+					$msg = urlencode( esc_html__( "That user is already confirmed", 'wp-members' ) );
 				}
+				$sendback = add_query_arg( array( 'activated' => $msg ), $sendback );
+				break;
+
+			case 'resend-single':
+				
+				// Validate nonce.
+				check_admin_referer( 'resend-user' );
+
+				// Get the user.
+				$user_id = filter_var( $_REQUEST['user'], FILTER_VALIDATE_INT );
+
+				// Send welcome message.
+				wpmem_email_to_user( array( 
+					'user_id' => $user_id,
+					'tag' => ( wpmem_is_enabled( 'mod_reg' ) ) ? 'newmod' : 'newreg'
+				) );
+
+				// Get user data for admin notice.
+				$user_info = get_userdata( $user_id );
+				$msg = urlencode( sprintf( esc_html__( "Resent welcome message to %s", 'wp-members' ), $user_info->user_email ) );
 				$sendback = add_query_arg( array( 'activated' => $msg ), $sendback );
 				break;
 
@@ -256,11 +313,11 @@ class WP_Members_Admin_Users {
 		global $pagenow, $user_action_msg;
 		 if( $pagenow == 'users.php' && isset( $_REQUEST['activated'] ) ) {
 			$message = esc_html( $_REQUEST['activated'] );
-			echo "<div class=\"updated\"><p>{$message}</p></div>";
+			echo '<div class="updated"><p>' . esc_html( $message ) . '</p></div>';
 		}
 
 		if ( $user_action_msg ) {
-			echo "<div class=\"updated\"><p>{$user_action_msg}</p></div>";
+			echo '<div class="updated"><p>' . esc_html( $user_action_msg ) . '</p></div>';
 		}
 	}
 
@@ -285,7 +342,7 @@ class WP_Members_Admin_Users {
 		$user_counts = get_transient( 'wpmem_user_counts' );
 
 		// check to see if data was successfully retrieved from the cache
-		if ( false === $user_counts ) {
+		if ( false == $user_counts ) {
 
 			// @todo For now, 5 minutes.  We'll see how things go.
 			$transient_expires = 300; // Value in seconds, 1 day: ( 60 * 60 * 24 );
@@ -340,31 +397,31 @@ class WP_Members_Admin_Users {
 		}
 
 		if ( defined( 'WPMEM_EXP_MODULE' ) && 1 == $wpmem->use_exp ) {
-			$views['pending']      = __( 'Pending',       'wp-members' );
-			$views['trial']        = __( 'Trial',         'wp-members' );
-			$views['subscription'] = __( 'Subscription',  'wp-members' );
-			$views['expired']      = __( 'Expired',       'wp-members' );
+			$views['pending']      = esc_html__( 'Pending',       'wp-members' );
+			$views['trial']        = esc_html__( 'Trial',         'wp-members' );
+			$views['subscription'] = esc_html__( 'Subscription',  'wp-members' );
+			$views['expired']      = esc_html__( 'Expired',       'wp-members' );
 		}
 		if ( 1 == $wpmem->mod_reg ) {
-			$views['active']       = __( 'Activated',          'wp-members' );
-			$views['notactive']    = __( 'Pending Activation', 'wp-members' );
-			$views['deactivated']  = __( 'Deactivated',        'wp-members' );
+			$views['active']       = esc_html__( 'Activated',          'wp-members' );
+			$views['notactive']    = esc_html__( 'Pending Activation', 'wp-members' );
+			$views['deactivated']  = esc_html__( 'Deactivated',        'wp-members' );
 		}
 		if ( 1 == $wpmem->act_link ) {
-			$views['confirmed']    = __( 'Confirmed',     'wp-members' );
-			$views['notconfirmed'] = __( 'Not Confirmed', 'wp-members' );
+			$views['confirmed']    = esc_html__( 'Confirmed',     'wp-members' );
+			$views['notconfirmed'] = esc_html__( 'Not Confirmed', 'wp-members' );
 		}
-		$views['notexported']      = __( 'Not Exported',  'wp-members' );
+		$views['notexported']      = esc_html__( 'Not Exported',  'wp-members' );
 		$show = sanitize_text_field( wpmem_get( 'show', false, 'get' ) );
 		
 		foreach ( $views as $key => $view ) {
 			if ( isset( $user_counts[ $key ] ) ) {
-				$link          = "users.php?action=show&amp;show=" . $key;
+				$link          = "users.php?action=show&amp;show=" . esc_attr( $key );
 				$current       = ( $show == $key ) ? ' class="current"' : '';
 				$views[ $key ] = sprintf(
 					'<a href="%s" %s>%s <span class="count">(%d)</span></a>',
 					esc_url( $link ),
-					$current,
+					esc_attr( $current ),
 					$view,
 					isset( $user_counts[ $key ] ) ? $user_counts[ $key ] : ''
 				);
@@ -411,7 +468,7 @@ class WP_Members_Admin_Users {
 			
 			// @todo This is a workaround so that wpmembers_utfields doesn't have to be updated.
 			if ( isset( $wpmem_user_columns['active'] ) ) { 
-				$wpmem_user_columns['active'] = __( 'Activated', 'wp-members' );
+				$wpmem_user_columns['active'] = esc_html__( 'Activated', 'wp-members' );
 			}
 
 			if ( 1 != $wpmem->act_link ) {
@@ -476,7 +533,7 @@ class WP_Members_Admin_Users {
 				case '_wpmem_user_confirmed':
 					if ( 1 == $wpmem->act_link ) {
 						$user_confirmed = get_user_meta( $user_id , '_wpmem_user_confirmed', 'true' );
-						return ( $user_confirmed ) ? date_i18n( get_option( 'date_format' ), $user_confirmed ) : __( 'Not confirmed', 'wp-members' );
+						return ( $user_confirmed ) ? date_i18n( get_option( 'date_format' ), $user_confirmed ) : esc_html__( 'Not confirmed', 'wp-members' );
 					} else {
 						return;
 					}

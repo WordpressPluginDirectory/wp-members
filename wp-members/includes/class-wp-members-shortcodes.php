@@ -7,13 +7,13 @@
  * 
  * This file is part of the WP-Members plugin by Chad Butler
  * You can find out more about this plugin at https://rocketgeek.com
- * Copyright (c) 2006-2024  Chad Butler
+ * Copyright (c) 2006-2025  Chad Butler
  * WP-Members(tm) is a trademark of butlerblog.com
  *
  * @package WP-Members
  * @subpackage WP_Members_Shortcodes
  * @author Chad Butler 
- * @copyright 2006-2024
+ * @copyright 2006-2025
  */
 
 // Exit if accessed directly.
@@ -22,8 +22,13 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 class WP_Members_Shortcodes {
+
+	public $enable_field = 0;
 	
-	function __construct() {
+	function __construct( $settings ) {
+
+		$this->enable_field = ( isset( $settings['shortcodes']['enable_field'] ) ) ? $settings['shortcodes']['enable_field'] : 0;
+
 		/**
 		 * Fires before shortcodes load.
 		 *
@@ -36,22 +41,31 @@ class WP_Members_Shortcodes {
 		add_shortcode( 'wpmem_logged_out',   array( $this, 'logged_out'   ) );
 		add_shortcode( 'wpmem_logout',       array( $this, 'logout'       ) );
 		add_shortcode( 'wpmem_form',         array( $this, 'forms'        ) );
-		add_shortcode( 'wpmem_show_count',   array( $this, 'user_count'   ) );
+		add_shortcode( 'wpmem_login',        array( $this, 'forms_login' ) );
+		add_shortcode( 'wpmem_reg',          array( $this, 'forms_reg' ) );
 		add_shortcode( 'wpmem_profile',      array( $this, 'user_profile' ) );
 		add_shortcode( 'wpmem_loginout',     array( $this, 'loginout'     ) );
-		add_shortcode( 'wpmem_tos',          array( $this, 'tos'          ) );
-		add_shortcode( 'wpmem_avatar',       array( $this, 'avatar'       ) );
 		add_shortcode( 'wpmem_login_link',   array( $this, 'login_link'   ) );
 		add_shortcode( 'wpmem_login_button', array( $this, 'login_button' ) );
 		add_shortcode( 'wpmem_reg_link',     array( $this, 'login_link'   ) );
+		add_shortcode( 'wpmem_tos',          array( $this, 'tos'          ) );
+		add_shortcode( 'wpmem_avatar',       array( $this, 'avatar'       ) );
+		add_shortcode( 'wpmem_show_count',   array( $this, 'user_count'   ) );
 		add_shortcode( 'wpmem_form_nonce',   array( $this, 'form_nonce'   ) );
 
-		// @todo This will change in 3.5.0
-		$field_sc = get_option( 'wpmem_enable_field_sc' );
-		if ( 1 == $field_sc && current_user_can( 'list_users' ) ) {
+		/**
+		 * Filters the capability required for partial [wpmem_field]. 
+		 * 
+		 * @since 3.5.0
+		 * 
+		 * @param  string  $required_capability
+		 */
+		$required_capability = apply_filters( 'wpmem_field_sc_required_capability', 'list_users' );
+
+		if ( 1 == $this->enable_field && current_user_can( $required_capability ) ) {
 			add_shortcode( 'wpmem_field', array( $this, 'fields' ) );
 		}
-		if ( 2 == $field_sc ) {
+		if ( 2 == $this->enable_field ) {
 			add_shortcode( 'wpmem_field', array( $this, 'fields' ) );
 		}
 		
@@ -62,6 +76,36 @@ class WP_Members_Shortcodes {
 		 * @since 3.1.6 Was wpmem_load_shortcodes, now wpmem_shortcodes_loaded.
 		 */
 		do_action( 'wpmem_shortcodes_loaded' );
+	}
+
+	/**
+	 * Alias for [wpmem_form login] shortcode.
+	 * 
+	 * @since 3.5.0
+	 * 
+	 * @param  array  $atts
+	 * @param  string $content
+	 * @param  string $tag
+	 * @param  return $content
+	 */
+	public function forms_login( $atts, $content, $tag ) {
+		$atts[0] = 'login';
+		return $this->forms( $atts, $content, 'wpmem_form' );
+	}
+
+	/**
+	 * Alias for [wpmem_form reg] shortcode.
+	 * 
+	 * @since 3.5.0
+	 * 
+	 * @param  array  $atts
+	 * @param  string $content
+	 * @param  string $tag
+	 * @param  return $content
+	 */
+	public function forms_reg( $atts, $content, $tag ) {
+		$atts[0] = 'register';
+		return $this->forms( $atts, $content, 'wpmem_form' );
 	}
 	
 	/**
@@ -153,7 +197,7 @@ class WP_Members_Shortcodes {
 					 */
 					$content = ( $content ) ? $content : $this->render_links( 'register' );
 				} elseif ( is_user_logged_in() && is_customize_preview() && get_theme_mod( 'wpmem_show_form_message_dialog', false ) ) {
-					$wpmem_themsg = esc_html__( "This is a generic message to display the form message dialog in the Customizer.", 'wp-members' );
+					$wpmem_themsg = wpmem_get_text( 'customizer_generic_msg' );
 					$content  = wpmem_get_display_message( $wpmem->regchk, $wpmem_themsg );
 					$content .= wpmem_register_form( $reg_form_args );
 				} else {
@@ -326,12 +370,12 @@ class WP_Members_Shortcodes {
 					$membership = ( isset( $sanitized_atts['membership'] ) ) ? $sanitized_atts['membership'] : $sanitized_atts['product'];
 					$message    = ( isset( $sanitized_atts['msg'] ) && ( true === $sanitized_atts['msg'] || "true" === strtolower( $sanitized_atts['msg'] ) ) ) ? true : false;
 					$not_in     = ( isset( $sanitized_atts['not_in'] ) && "false" != $sanitized_atts['not_in'] ) ? true : false;
-					if ( true == $not_in ) {
+					if ( $not_in ) {
 						$do_return = ( wpmem_user_has_access( $membership ) || ! is_user_logged_in() ) ? false : true;
 					} else {
 						if ( wpmem_user_has_access( $membership ) ) {
 							$do_return = true;
-						} elseif ( true === $message ) {
+						} elseif ( true == $message ) {
 							$do_return = true;
 							$settings = array(
 								'wrapper_before' => '<div class="product_restricted_msg">',
@@ -533,12 +577,16 @@ class WP_Members_Shortcodes {
 
 			} elseif ( 'set_password_from_key' == $wpmem->action ) {
 				
-				$content = ( false != $wpmem->pwd_reset->content ) ? $wpmem->pwd_reset->content : $content;
+				$content = ( false != $wpmem->user->pwd_reset->content ) ? $wpmem->user->pwd_reset->content : $content;
 
 			} elseif ( 'getusername' == $wpmem->action ) {
 
 				$content = $this->render_forgot_username( $wpmem->regchk, $content );
 
+			} elseif ( 'reconfirm' == $wpmem->action ) {
+			
+				$content = $this->render_resend_confirm( $wpmem->regchk, $content );
+			
 			} else {
 
 				$content = $content . wpmem_login_form( 'profile' );
@@ -595,7 +643,6 @@ class WP_Members_Shortcodes {
 	 * Filter the end result with `wpmem_field_shortcode`.
 	 * 
 	 * User input is sanitized with wpmem_sanitize_array().
-	 * @todo Output should be reviewed for escape.
 	 *
 	 * @since 3.1.2
 	 * @since 3.1.4 Changed to display value rather than stored value for dropdown/multicheck/radio.
@@ -669,7 +716,7 @@ class WP_Members_Shortcodes {
 		$fields = wpmem_fields();
 
 		// Additional fields from $user_info that are allowed by default.
-		$allowed_fields = array_merge( array( 'ID', 'user_login', 'user_email', 'user_registered', 'user_url', 'description', 'display_name' ), array_keys( $fields ) );
+		$allowed_fields = array_merge( array( 'ID', 'user_login', 'user_email', 'user_registered', 'user_url', 'description', 'display_name', 'expires' ), array_keys( $fields ) );
 
 		// Remove some (it won't ever get here for these, but just so they don't show up in the filter array to confuse someone).
 		unset( $allowed_fields['password'] );
@@ -728,7 +775,7 @@ class WP_Members_Shortcodes {
 							 *     @type string $wrapper_after
 							 * }
 							 * @param  string  $field
-							 * /
+							 */
 							$multi_args = apply_filters( 'wpmem_field_shortcode_multi_args', array(
 								'wrapper_before' => '<ul id="wpmem_sc_field_' . $field . '">',
 								'item_id'        => 'wpmem-sc-multi-' . $field,
@@ -755,7 +802,7 @@ class WP_Members_Shortcodes {
 							 * 
 							 * @param  array  $rows 
 							 * @param  string $field
-							 * /
+							 */
 							$rows = apply_filters( 'wpmem_field_shortcode_multi_rows', $rows, $field );
 							$row_items = '';
 							foreach ( $rows as $value => $row ) {
@@ -763,7 +810,6 @@ class WP_Members_Shortcodes {
 							}
 
 							$result = $multi_args['wrapper_before'] . $row_items . $multi_args['wrapper_after'];
-						*/
 
 							$args = array(
 								'wrapper' => array(
@@ -964,8 +1010,8 @@ class WP_Members_Shortcodes {
 		// Logout link shortcode.
 		if ( is_user_logged_in() && $tag == 'wpmem_logout' ) {
 			$link = ( isset( $sanitized_atts['url'] ) ) ? add_query_arg( array( 'a'=>'logout', 'redirect_to'=>$sanitized_atts['url'] ) ) : add_query_arg( 'a', 'logout' );
-			$text = ( $content ) ? $content : esc_html__( 'Click here to log out.', 'wp-members' );
-			return do_shortcode( '<a href="' . esc_url( $link ) . '">' . $text . '</a>' );
+			$text = ( $content ) ? $content : wpmem_get_text( 'logout_sc_text' ); // "Click here to log out."
+			return do_shortcode( '<a href="' . esc_url( $link ) . '">' . esc_html( $text ) . '</a>' );
 		}
 	}
 
@@ -1150,7 +1196,7 @@ class WP_Members_Shortcodes {
 
 			} elseif ( 'set_password_from_key' == $wpmem->action ) {
 				
-				return ( false != $wpmem->pwd_reset->content ) ? $wpmem->pwd_reset->content : $content;
+				return ( false != $wpmem->user->pwd_reset->content ) ? $wpmem->user->pwd_reset->content : $content;
 			
 			} else {
 
@@ -1257,7 +1303,7 @@ class WP_Members_Shortcodes {
 				break;
 
 			case "usernamesuccess":
-				$email = ( isset( $_POST['user_email'] ) ) ? sanitize_email( $_POST['user_email'] ) : '';
+				$email = wpmem_get_sanitized( 'user_email', '', 'post', 'email' ); // ( isset( $_POST['user_email'] ) ) ? sanitize_email( $_POST['user_email'] ) : '';
 				$msg = sprintf( wpmem_get_text( 'usernamesuccess' ), $email );
 				$content = $content . wpmem_get_display_message( 'usernamesuccess', $msg );
 				$wpmem->regchk = ''; // Clear regchk.
@@ -1265,6 +1311,50 @@ class WP_Members_Shortcodes {
 
 			default:
 				$content = $content . wpmem_forgot_username_form();
+				break;
+			}
+
+		}
+
+		return $content;
+
+	}
+
+	/**
+	 * Resend confirmation link form.
+	 *
+	 * This function creates a form for requesting a new confirmation link.
+	 *
+	 * @since 3.5.0
+	 *
+	 * @param  string $wpmem_regchk
+	 * @param  string $content
+	 * @return string $content
+	 */
+	function render_resend_confirm( $wpmem_regchk, $content ) {
+
+		if ( ! is_user_logged_in() ) {
+
+			global $wpmem;
+			switch( $wpmem->regchk ) {
+
+			case "reconfirmfailed":
+				$msg = wpmem_get_text( 'pwdreseterr' );
+				$content = $content
+					. wpmem_get_display_message( 'pwdreseterr', $msg ) 
+					. wpmem_resend_confirmation_form();
+				$wpmem->regchk = ''; // Clear regchk.
+				break;
+
+			case "reconfirmsuccess":
+				$email = wpmem_get_sanitized( 'user_email', '', 'post', 'email' ); // ( isset( $_POST['user_email'] ) ) ? sanitize_email( $_POST['user_email'] ) : '';
+				$msg = wpmem_get_text( 'reconfirm_success' );
+				$content = $content . wpmem_get_display_message( 'reconfirm_success', $msg );
+				$wpmem->regchk = ''; // Clear regchk.
+				break;
+
+			default:
+				$content = $content . wpmem_resend_confirmation_form();
 				break;
 			}
 
@@ -1349,7 +1439,7 @@ class WP_Members_Shortcodes {
 
 			case 'login':
 
-				$logout = urldecode( $logout );
+				$logout = rawurldecode( $logout );
 				/*
 				 * NOTE: DO NOT EDIT THESE. Use the filter hook below.
 				 * 

@@ -7,13 +7,13 @@
  * 
  * This file is part of the WP-Members plugin by Chad Butler
  * You can find out more about this plugin at https://rocketgeek.com
- * Copyright (c) 2006-2023  Chad Butler
+ * Copyright (c) 2006-2025  Chad Butler
  * WP-Members(tm) is a trademark of butlerblog.com
  *
  * @package WP-Members
  * @subpackage WP_Members_Shortcodes
  * @author Chad Butler 
- * @copyright 2006-2023
+ * @copyright 2006-2025
  */
 
 // Exit if accessed directly.
@@ -67,7 +67,6 @@ class WP_Members_Email {
 	public function load_from() {
 		$this->from      = get_option( 'wpmembers_email_wpfrom', '' );
 		$this->from_name = get_option( 'wpmembers_email_wpname', '' );
-		$this->html      = get_option( 'wpmembers_email_html',   '' );
 	}
 	
 	/**
@@ -98,11 +97,11 @@ class WP_Members_Email {
 	 * @param  int    $user_ID              The User's ID.
 	 * @param  string $password             Password from the registration process.
 	 * @param  string $tag                  Tag indicating the email being sent (newreg|newmod|appmod|repass|getuser).
-	 * @param  array  $wpmem_fields         Array of the WP-Members fields (defaults to null).
+	 * @param  array  $wpmem_fields         Array of the WP-Members fields (defaults to false).
 	 * @param  array  $fields               Array of the registration data (defaults to null).
 	 * @param  array  $custom               Array of custom email information (defaults to null).
 	 */
-	public function to_user( $user_id, $password, $tag, $wpmem_fields = null, $field_data = null, $custom = null ) {
+	public function to_user( $user_id, $password, $tag, $wpmem_fields = false, $field_data = null, $custom = null ) {
 
 		global $wpmem;
 		
@@ -111,30 +110,25 @@ class WP_Members_Email {
 		$this->load_format();
 
 		// Handle backward compatibility for customizations that may call the email function directly.
-		$wpmem_fields = wpmem_fields();
+		$wpmem_fields = ( false == $wpmem_fields ) ? wpmem_fields( 'all' ) : $wpmem_fields;
+
+		// Handle backward compatibility for passing numeric tags.
+		if ( is_numeric( $tag ) ) {
+			if ( 5 != $tag ) {
+				$tag = array_search( $tag, array( 'newreg'=>0, 'newmod'=>1, 'appmod'=>2, 'repass'=>3, 'getuser'=>4, 'validated'=>6 ) );
+			}
+		}
 
 		//Determine email to be sent. Stored option is an array with keys 'body' and 'subj'.
 		$tag_array = array( 'newreg', 'newmod', 'appmod', 'repass', 'getuser', 'validated' );
-		switch ( $tag ) {
-			case 0: 
-			case 1:
-			case 2:
-			case 3:
-			case 4:
-				$tag = $tag_array[ $tag ];
-				$this->settings = get_option( 'wpmembers_email_' . $tag );
-				$this->settings['tag'] = $tag;
-				break;
-			case 6:
-				$this->settings = get_option( 'wpmembers_email_validated' );
-				$this->settings['tag'] = 'validated';
-				break;
-			default: // case 5:
-				// This is a custom email.
-				$this->settings['subj'] = $custom['subj'];
-				$this->settings['body'] = $custom['body'];
-				$this->settings['tag']  = ( isset( $custom['tag'] ) ) ? $custom['tag'] : '';
-				break;
+		if ( in_array( $tag, $tag_array ) ) {
+			$this->settings = wpmem_get_email_settings( 'wpmembers_email_' . $tag );
+			$this->settings['tag'] = $tag;
+		} else {
+			// This is a custom email.
+			$this->settings['subj'] = $custom['subj'];
+			$this->settings['body'] = $custom['body'];
+			$this->settings['tag']  = ( isset( $custom['tag'] ) ) ? $custom['tag'] : '';
 		}
 		
 		// wpautop() the content if we are doing HTML email.
@@ -158,7 +152,7 @@ class WP_Members_Email {
 		$this->settings['reg_link']      = esc_url( get_user_meta( $user_id, 'wpmem_reg_url', true ) );
 		$this->settings['do_shortcodes'] = true;
 		$this->settings['add_footer']    = true;
-		$this->settings['footer']        = ( 1 == $this->html ) ? wpautop( get_option( 'wpmembers_email_footer' ) ) : get_option( 'wpmembers_email_footer' );
+		$this->settings['footer']        = ( 1 == $this->html ) ? wpautop( wpmem_get_email_settings( 'wpmembers_email_footer' ) ) : wpmem_get_email_settings( 'wpmembers_email_footer' );
 		$this->settings['disable']       = false;
 		$this->settings['toggle']        = $this->settings['tag']; // Deprecated since 3.2.0, but remains in the array for legacy reasons.
 		$this->settings['reset_link']    = esc_url_raw( add_query_arg( array( 'a' => 'pwdreset', 'key' => $password, 'id' => $user_id ), wpmem_profile_url() ) );
@@ -245,7 +239,7 @@ class WP_Members_Email {
 			 * @param string $this->settings['body'] The body content of the new registration email.
 			 * @param int    $user_id
 			 */
-			$this->settings['body'] = apply_filters( 'wpmem_email_' . $this->settings['tag'], $this->settings['body'] );
+			$this->settings['body'] = apply_filters_deprecated( 'wpmem_email_' . $this->settings['tag'], array( $this->settings['body'] ), '3.2.0', 'wpmem_email_filter' );
 
 			// Get the email footer if needed.
 			$foot = ( $this->settings['add_footer'] ) ? $this->settings['footer'] : '';
@@ -355,7 +349,7 @@ class WP_Members_Email {
 		$user = get_userdata( $user_id );
 
 		// Get the email stored values.
-		$this->settings  = get_option( 'wpmembers_email_notify' );
+		$this->settings  = wpmem_get_email_settings( 'wpmembers_email_notify' );
 
 		// wpautop() the content if we are doing HTML email.
 		if ( 1 == $this->html ) {
@@ -374,7 +368,7 @@ class WP_Members_Email {
 		$this->settings['exp_date']      = ( defined( 'WPMEM_EXP_MODULE' ) && $wpmem->use_exp == 1 ) ? get_user_meta( $user_id, 'expires',  true ) : '';
 		$this->settings['do_shortcodes'] = true;
 		$this->settings['add_footer']    = true;
-		$this->settings['footer']        = ( 1 == $this->html ) ? wpautop( get_option( 'wpmembers_email_footer' ) ) : get_option( 'wpmembers_email_footer' );
+		$this->settings['footer']        = ( 1 == $this->html ) ? wpautop( wpmem_get_email_settings( 'wpmembers_email_footer' ) ) : wpmem_get_email_settings( 'wpmembers_email_footer' );
 		$this->settings['disable']       = false;
 		$this->settings['line_break']    = ( 1 == $this->html ) ? "<br>" : "\r\n";
 
@@ -388,17 +382,17 @@ class WP_Members_Email {
 							$val = esc_url( $user->user_url );
 						} elseif ( in_array( $meta_key, $wp_user_fields ) ) {
 							$val = esc_html( $user->{$meta_key} );
-						} elseif ( 'file' == $field['type'] || 'image' == $field['type'] ) {
-							$val = wp_get_attachment_url( get_user_meta( $user_id, $meta_key, true ) );
+						} elseif ( wpmem_is_file_field( $meta_key ) ) {
+							$val = wpmem_get_file_field_url( $meta_key, $user_id );
 						} else {
 							$val = ( is_array( $field_data ) ) ? esc_html( $field_data[ $meta_key ] ) : esc_html( get_user_meta( $user_id, $meta_key, true ) );
 						}
-						$field_arr[ __( $field['label'], 'wp-members' ) ] = $val;
+						$field_arr[ $meta_key ] = $val;
 					}
 				}
 			}
 		}
-		$this->settings['field_arr'] = $field_arr;
+		$this->settings['fields'] = $field_arr;
 
 		// Apply filters (if set) for the sending email address.
 		$default_header = ( $this->from && $this->from_name ) ? 'From: "' . $this->from_name . '" <' . $this->from . '>' : '';
@@ -431,6 +425,7 @@ class WP_Members_Email {
 		 * @since 2.9.8
 		 * @since 3.3.9 Added $user param.
 		 * @since 3.4.2 Added optional line_break param.
+		 * @since 3.5.0 $field_arr obsolete, use $fields instead.
 		 *
 		 * @param array $this->settings
 		 *     An array containing email body, subject, user id, and additional settings.
@@ -450,7 +445,8 @@ class WP_Members_Email {
 		 *     @type boolean $add_footer
 		 *     @type boolean $footer
 		 *     @type boolean $disable
-		 *     @type array   $field_arr
+		 *     @type array   $field_arr @obsolete 3.5.0
+		 *     @type array   $fields
 		 *     @type string  $headers
 		 *     @type string  $admin_email
 		 *     @type string  $line_break
@@ -464,10 +460,10 @@ class WP_Members_Email {
 		// If emails are not disabled, continue the email process.
 		if ( ! $this->settings['disable'] ) {
 
-			// Split field_arr into field_str.
+			// Split fields into field_str.
 			$field_str = '';
-			foreach ( $this->settings['field_arr'] as $key => $val ) {
-				$field_str.= $key . ': ' . $val . $this->settings['line_break']; 
+			foreach ( $this->settings['fields'] as $key => $val ) {
+				$field_str.= wpmem_get_field_label( $key ) . ': ' . $val . $this->settings['line_break']; 
 			}
 
 			// Get the email footer if needed.
@@ -491,9 +487,9 @@ class WP_Members_Email {
 
 				// Add custom field shortcodes.
 				foreach ( $wpmem_fields as $meta_key => $field ) {
-					$val = ( is_array( $field_data ) && $field['register'] ) ? $field_data[ $meta_key ] : get_user_meta( $user_id, $meta_key, true );
-					$shortcodes[ $meta_key ] = $val;
+					$shortcodes[ $meta_key ] = $this->settings['fields'][ $meta_key ];
 				}
+				// @todo Instead of foreach above: $shortcodes = array_merge( $shortcodes, $this->settings['fields']);
 
 				/**
 				 * Filter available email shortcodes.
@@ -581,7 +577,7 @@ class WP_Members_Email {
 	 *
 	 * @return string Always returns "text/html"
 	 */
-	public function content_type( $content_type ) {
+	public function content_type( $content_type = 'text/plain' ) {
 		return ( 1 == $this->html ) ? 'text/html' : $content_type;
 	}
 
@@ -626,5 +622,123 @@ class WP_Members_Email {
 		
 		// Return result (does not necessarily indicate message was sent).
 		return $result;
+	}
+
+	/**
+	 * Defaults for most plugin emails.
+	 * 
+	 * @since 3.5.0
+	 * 
+	 * @param  string  $tag
+	 * @return array
+	 */
+	function get_default_email( $tag ) {
+
+		switch ( $tag ) {
+
+			case 'wpmembers_email_newreg':
+				// Email for a new registration.
+				$args['subj'] = 'Your registration info for [blogname]';
+				$args['body'] = 'Thank you for registering for [blogname]!
+
+Please confirm your email address by following the link below:
+[confirm_link]
+
+Once you have confirmed your email address, you will be able to log in using the credentials you created when you registered.
+';
+				break;
+
+			case 'wpmembers_email_newmod':
+	
+				// Email for new registration, registration is moderated.
+				$args['subj'] = 'Thank you for registering for [blogname]';
+				$args['body'] = 'Thank you for registering for [blogname]. 
+Your registration has been received and is pending approval.
+You will receive login instructions upon approval of your account
+';
+				break;
+
+			case 'wpmembers_email_appmod':
+	
+				// Email for registration is moderated, user is approved.
+				$args['subj'] = 'Your registration for [blogname] has been approved';
+				$args['body'] = 'Your registration for [blogname] has been approved.
+
+Your registration information is below.
+You may wish to retain a copy for your records.
+
+username: [username]
+password: [password]
+
+You may log in and change your password here:
+[user-profile]
+
+You originally registered at:
+[reglink]
+';
+				break;
+	
+			case 'wpmembers_email_repass':
+	
+				// Email for password reset.
+				$args['subj'] = 'Your password reset for [blogname]';
+				$args['body'] = 'A password reset was requested for [blogname].
+
+Follow the link below to reset your password:
+[reset_link]
+
+If you did not request a password reset for [blogname], simply ignore this message and the reset key will expire.
+';
+				break;
+
+			case 'wpmembers_email_notify':
+	
+				// Email for admin notification.
+				$args['subj'] = 'New user registration for [blogname]';
+				$args['body'] = 'The following user registered for [blogname]:
+	
+username: [username]
+email: [email]
+
+[fields]
+This user registered here:
+[reglink]
+
+user IP: [user-ip]
+
+activate user: [activate-user]
+';
+				break;
+
+			case 'wpmembers_email_footer':
+	
+				// Email footer (no subject).
+				$args = '----------------------------------
+This is an automated message from [blogname]
+Please do not reply to this address';
+
+				break;
+	
+			case 'wpmembers_email_getuser':
+		
+				// Email for retrieve username.
+				$args['subj'] = 'Username for [blogname]';
+				$args['body'] = 'Your username for [blogname] is below.
+	
+username: [username]
+';
+				break;
+
+			case 'wpmembers_email_validated':
+				$args['subj'] = 'Thank you for validating your email.';
+				$args['body'] = 'Thank you for validating your email address.  You may now log in and use the site.';
+				break;
+	
+			default:
+				$args = false;
+				break;
+		}
+		
+		return $args;
 	}
 }
