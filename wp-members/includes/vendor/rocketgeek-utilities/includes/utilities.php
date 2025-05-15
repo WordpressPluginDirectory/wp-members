@@ -12,10 +12,10 @@
  * @link       https://github.com/rocketgeek/rocketgeek-utilities/
  * @author     Chad Butler <https://butlerblog.com>
  * @author     RocketGeek <https://rocketgeek.com>
- * @copyright  Copyright (c) 2024 Chad Butler
+ * @copyright  Copyright (c) 2025 Chad Butler
  * @license    Apache-2.0
  *
- * Copyright [2024] Chad Butler, RocketGeek
+ * Copyright [2025] Chad Butler, RocketGeek
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -29,6 +29,28 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
+if ( ! function_exists('rktgk_write_log')):
+/**
+ * Writes text to the WP log file.
+ * 
+ * If the content is an array, it will format the array to
+ * a readable format (print_r($log, true)), something the
+ * WP function `error_log()` does not do.
+ * 
+ * @since 1.0.0
+ * @since 1.1.0 Moved to general utilities.
+ * 
+ * @param  string  $log  The text to write to the log.
+ */
+function rktgk_write_log( $log )  {
+    if ( is_array( $log ) || is_object( $log ) ) {
+        error_log( print_r( $log, true ) );
+    } else {
+        error_log( $log );
+    }
+}
+endif;
 
 if ( ! function_exists( 'rktgk_force_ssl' ) ):
 /**

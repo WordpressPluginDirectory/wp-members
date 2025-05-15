@@ -673,8 +673,8 @@ class WP_Members_Products {
 
 		$args = shortcode_atts( $pairs, $atts, $tag );
 
-		$content  = $args['title_before'] . $args['title'] . $args['title_after'];
-		$content .= $args['list_before'];
+		$content  = wp_kses_post( $args['title_before'] ) . esc_html( $args['title'] ) . wp_kses_post( $args['title_after'] );
+		$content .= wp_kses_post( $args['list_before'] );
 		foreach ( wpmem_get_user_memberships() as $key => $value ) {
 			
 			$exp_date = wpmem_get_user_expiration( $key );
@@ -685,10 +685,10 @@ class WP_Members_Products {
 			}
 
 			if ( $value ) {
-				$content .= $args['item_before'] . wpmem_get_membership_name( $key ) . " - " . $exp_formatted . $args['item_after'];
+				$content .= wp_kses_post( $args['item_before'] ) . esc_html( wpmem_get_membership_name( $key ) ) . " - " . esc_html( $exp_formatted ) . wp_kses_post( $args['item_after'] );
 			}
 		}
-		$content .= $args['list_after'];
+		$content .= wp_kses_post( $args['list_after'] );
 		return $content;
 	}
 
@@ -713,14 +713,14 @@ class WP_Members_Products {
 			
 			if ( $ids ) {
 
-				$membership_title = $args['title_before'] . wpmem_get_membership_name( $key ) . $args['title_after'];
-				$post_list = $args['list_before'];
+				$membership_title = wp_kses_post( $args['title_before'] ) . esc_html( wpmem_get_membership_name( $key ) ) . wp_kses_post( $args['title_after'] );
+				$post_list = wp_kses_post( $args['list_before'] );
 				foreach ( $ids as $id ) {
-					$post_title = get_the_title( $id );
-					$link  = '<a href="' . get_permalink( $id ) . '">' . $post_title . '</a>';
-					$post_list .= $args['item_before'] . $link . $args['item_after'];
+					$post_list .= wp_kses_post( $args['item_before'] );
+					$post_list .= '<a href="' . esc_url( get_permalink( $id ) ) . '">' . esc_html( get_the_title( $id ) ) . '</a>';
+					$post_list .= wp_kses_post( $args['item_after'] );
 				}
-				$post_list .= $args['list_after'];
+				$post_list .= wp_kses_post( $args['list_after'] );
 				
 				$content .= $membership_title . $post_list;
 			}

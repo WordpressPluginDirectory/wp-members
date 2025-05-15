@@ -12,10 +12,10 @@
  * @link       https://github.com/rocketgeek/rocketgeek-utilities/
  * @author     Chad Butler <https://butlerblog.com>
  * @author     RocketGeek <https://rocketgeek.com>
- * @copyright  Copyright (c) 2024 Chad Butler
+ * @copyright  Copyright (c) 2025 Chad Butler
  * @license    Apache-2.0
  *
- * Copyright [2024] Chad Butler, RocketGeek
+ * Copyright [2025] Chad Butler, RocketGeek
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -46,16 +46,6 @@ function rktgk_break_point( $print = 'you are here' ) {
 	}
 	echo $print;
 	exit();
-}
-endif;
-
-if ( ! function_exists('rktgk_write_log')):
-function rktgk_write_log( $log )  {
-    if ( is_array( $log ) || is_object( $log ) ) {
-        error_log( print_r( $log, true ) );
-    } else {
-        error_log( $log );
-    }
 }
 endif;
 
