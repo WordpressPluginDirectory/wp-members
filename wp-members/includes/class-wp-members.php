@@ -281,6 +281,7 @@ class WP_Members {
 	 * Container for stylesheet setting.
 	 *
 	 * @since  3.2.7
+	 * @deprecated 3.5.4
 	 * @access public
 	 * @var    string
 	 */
@@ -558,7 +559,7 @@ class WP_Members {
 		// Load user pages (login, register, user profile).
 		$this->load_user_pages();
 		
-		// Set the stylesheet. @todo "select_style" will be obsolete in 3.6.0 (maybe earlier).
+		// Set the stylesheet.
 		$this->cssurl = ( '' != $settings['cssurl'] ) ? $this->cssurl : $this->url . 'assets/css/forms/generic-no-float' . wpmem_get_suffix() . '.css';
 		
 		$this->forms       = new WP_Members_Forms;         // Load forms.
@@ -799,8 +800,6 @@ class WP_Members {
 		require_once $this->path . 'includes/api/api-settings.php';
 		require_once $this->path . 'includes/api/api-users.php';
 		require_once $this->path . 'includes/api/api-utilities.php';
-
-		//require_once $this->path . 'includes/blocks/class-wp-members-blocks.php';
 
 		if ( defined( 'WP_CLI' ) && WP_CLI ) {
 			require_once $this->path . 'includes/cli/class-wp-members-cli.php';
